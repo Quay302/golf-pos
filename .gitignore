@@ -1,0 +1,13 @@
+#Files that should be ignored by git
+.env
+.venv/
+
+#terraform files
+
+*.tfstate
+*.tfstate.backup
+# python files
+__pycache__/
+*.pyc
+.DS_Store
+
