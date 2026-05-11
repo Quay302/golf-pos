@@ -1,13 +1,21 @@
 #Files that should be ignored by git
-.env
-.venv/
+#claude
 .claude
-#terraform files
+# Env
+.env
 
+# Terraform
 *.tfstate
 *.tfstate.backup
-# python files
+.terraform/
+.terraform.lock.hcl
+terraform.tfvars
+
+# Python
 __pycache__/
 *.pyc
+venv/
+
+# Mac
 .DS_Store
 
