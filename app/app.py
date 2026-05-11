@@ -7,6 +7,8 @@ from functools import wraps
 from flask_cors import CORS
 from dotenv import load_dotenv
 
+load_dotenv()  # Load environment variables from .env file
+
 app = Flask(__name__)
 
 # Allow your domain

@@ -29,14 +29,6 @@ resource "aws_security_group" "flask_sg" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
-  # Flask app port
-  ingress {
-    from_port   = 5000
-    to_port     = 5000
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
   egress {
     from_port   = 0
     to_port     = 0
@@ -63,4 +55,26 @@ resource "aws_instance" "flask_server" {
 resource "aws_eip" "flask_eip" {
   instance = aws_instance.flask_server.id
   domain   = "vpc"
+}
+
+# Route53 - point your domain to the Elastic IP
+data "aws_route53_zone" "main" {
+  name = "acwebsite.click"
+}
+
+resource "aws_route53_record" "flask_a" {
+  zone_id = data.aws_route53_zone.main.zone_id
+  name    = "acwebsite.click"
+  type    = "A"
+  ttl     = 300
+  records = [aws_eip.flask_eip.public_ip]
+}
+
+# www redirect
+resource "aws_route53_record" "flask_www" {
+  zone_id = data.aws_route53_zone.main.zone_id
+  name    = "www.acwebsite.click"
+  type    = "A"
+  ttl     = 300
+  records = [aws_eip.flask_eip.public_ip]
 }
