@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Country Club POS</title>
+  <script src="https://js.stripe.com/v3/"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet">
+
+  <style>
+    :root {
+      --green: #0b3d2e;
+      --green-light: #145c44;
+      --gold: #c9a84c;
+      --bg: #f4f6f8;
+      --white: #ffffff;
+      --border: #dde1e7;
+      --text: #1a1a1a;
+      --muted: #6b7280;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'DM Sans', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+    }
+
+    /* -------------------------
+       LOGIN SCREEN
+    ------------------------- */
+    #loginScreen {
+      position: fixed;
+      inset: 0;
+      background: var(--green);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+    }
+
+    .login-box {
+      background: white;
+      border-radius: 16px;
+      padding: 40px;
+      width: 360px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+      text-align: center;
+    }
+
+    .login-box h1 {
+      font-family: 'Playfair Display', serif;
+      color: var(--green);
+      font-size: 26px;
+      margin-bottom: 6px;
+    }
+
+    .login-box p {
+      color: var(--muted);
+      font-size: 13px;
+      margin-bottom: 28px;
+    }
+
+    .login-box input {
+      width: 100%;
+      padding: 12px 14px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-size: 14px;
+      margin-bottom: 12px;
+      font-family: 'DM Sans', sans-serif;
+      outline: none;
+      transition: border 0.2s;
+    }
+
+    .login-box input:focus {
+      border-color: var(--green);
+    }
+
+    .login-box button {
+      width: 100%;
+      padding: 13px;
+      background: var(--green);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 15px;
+      font-family: 'DM Sans', sans-serif;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .login-box button:hover {
+      background: var(--green-light);
+    }
+
+    .login-error {
+      color: #dc2626;
+      font-size: 13px;
+      margin-top: 10px;
+      display: none;
+    }
+
+    /* -------------------------
+       POS APP
+    ------------------------- */
+    #posApp {
+      display: none;
+    }
+
+    header {
+      background: var(--green);
+      color: white;
+      padding: 14px 20px;
+      font-size: 18px;
+      font-family: 'Playfair Display', serif;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    header span {
+      font-family: 'DM Sans', sans-serif;
+      font-size: 13px;
+      opacity: 0.8;
+      cursor: pointer;
+    }
+
+    header span:hover { opacity: 1; }
+
+    .layout {
+      display: flex;
+      height: calc(100vh - 52px);
+    }
+
+    /* SIDEBAR */
+    .sidebar {
+      width: 170px;
+      background: white;
+      border-right: 1px solid var(--border);
+      padding: 12px;
+    }
+
+    .tab {
+      padding: 10px 12px;
+      margin-bottom: 6px;
+      background: #f1f1f1;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 500;
+      transition: 0.15s;
+    }
+
+    .tab:hover { background: #e2e8e4; }
+    .tab.active { background: var(--green); color: white; }
+
+    /* PRODUCTS */
+    .products {
+      flex: 1;
+      padding: 16px;
+      overflow-y: auto;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      align-content: start;
+    }
+
+    .tile {
+      background: white;
+      padding: 14px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      cursor: pointer;
+      text-align: center;
+      transition: 0.15s;
+      font-size: 13px;
+    }
+
+    .tile:hover {
+      border-color: var(--green);
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+    }
+
+    .tile b { display: block; margin-bottom: 4px; font-size: 13px; }
+    .tile .price { color: var(--green); font-weight: 600; font-size: 15px; }
+
+    /* CART */
+    .cart {
+      width: 300px;
+      background: white;
+      border-left: 1px solid var(--border);
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .cart h3 {
+      font-family: 'Playfair Display', serif;
+      font-size: 18px;
+      margin-bottom: 12px;
+      color: var(--green);
+    }
+
+    .cart-items { flex: 1; overflow-y: auto; }
+
+    .cart-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 13px;
+      padding: 7px 0;
+      border-bottom: 1px solid #f0f0f0;
+    }
+
+    .cart-item .remove {
+      color: #dc2626;
+      cursor: pointer;
+      font-size: 18px;
+      padding: 0 4px;
+      line-height: 1;
+    }
+
+    .cart-item .item-name { flex: 1; margin-right: 8px; }
+
+    .total {
+      font-size: 20px;
+      font-weight: 700;
+      margin-top: 14px;
+      padding-top: 12px;
+      border-top: 2px solid var(--border);
+      color: var(--green);
+    }
+
+    .btn-checkout {
+      margin-top: 12px;
+      padding: 14px;
+      background: var(--green);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 15px;
+      font-family: 'DM Sans', sans-serif;
+      font-weight: 500;
+      transition: background 0.2s;
+    }
+
+    .btn-checkout:hover { background: var(--green-light); }
+
+    .btn-clear {
+      margin-top: 8px;
+      padding: 10px;
+      background: white;
+      color: #dc2626;
+      border: 1px solid #dc2626;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 13px;
+      font-family: 'DM Sans', sans-serif;
+      transition: 0.15s;
+    }
+
+    .btn-clear:hover { background: #fef2f2; }
+
+    #successBanner {
+      display: none;
+      background: #d1fae5;
+      color: #065f46;
+      padding: 12px 16px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 500;
+      margin-bottom: 10px;
+      text-align: center;
+    }
+  </style>
+</head>
+
+<body>
+
+<!-- LOGIN SCREEN -->
+<div id="loginScreen">
+  <div class="login-box">
+    <h1>Country Club POS</h1>
+    <p>Staff access only — sign in to continue</p>
+    <input type="text" id="username" placeholder="Username" />
+    <input type="password" id="password" placeholder="Password"
+           onkeydown="if(event.key==='Enter') login()" />
+    <button onclick="login()">Sign In</button>
+    <div class="login-error" id="loginError">Incorrect username or password</div>
+  </div>
+</div>
+
+<!-- POS APP -->
+<div id="posApp">
+  <header>
+    Country Club POS
+    <span onclick="logout()">⇠ Sign out</span>
+  </header>
+
+  <div class="layout">
+
+    <div class="sidebar">
+      <div class="tab active" onclick="setCategory('tees', this)">Tee Times</div>
+      <div class="tab" onclick="setCategory('balls', this)">Golf Balls</div>
+      <div class="tab" onclick="setCategory('drinks', this)">Drinks</div>
+      <div class="tab" onclick="setCategory('snacks', this)">Snacks</div>
+    </div>
+
+    <div class="products" id="productGrid"></div>
+
+    <div class="cart">
+      <h3>Cart</h3>
+      <div id="successBanner">✓ Payment successful — cart cleared</div>
+      <div class="cart-items" id="cartItems"></div>
+      <div class="total">Total: $<span id="total">0.00</span></div>
+      <button class="btn-checkout" onclick="checkout()">Charge Customer</button>
+      <button class="btn-clear" onclick="clearCart()">Clear Cart</button>
+    </div>
+
+  </div>
+</div>
+
+<script>
+  // -------------------------
+let currentUser = null;
+
+async function login() {
+    const username = document.getElementById("username").value.trim();
+    const password = document.getElementById("password").value;
+    const error = document.getElementById("loginError");
+
+    error.style.display = "none"; // ← reset at the start of every attempt
+
+    try {
+        const res = await fetch("/login", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ username, password })
+        });
+
+        if (res.ok) {
+            const data = await res.json();
+            currentUser = data.username;
+            document.getElementById("loginScreen").style.display = "none";
+            document.getElementById("posApp").style.display = "block";
+            renderProducts();
+            checkSuccessParam();
+        } else {
+            error.innerText = "Incorrect username or password";
+            error.style.display = "block";
+        }
+    } catch (err) {
+        error.innerText = "Could not connect to server";
+        error.style.display = "block";
+    }
+}
+
+  async function logout() {
+    await fetch("/logout", { method: "POST" });
+    currentUser = null;
+    cart = [];
+    document.getElementById("loginScreen").style.display = "flex";
+    document.getElementById("posApp").style.display = "none";
+    document.getElementById("username").value = "";
+    document.getElementById("password").value = "";
+    document.getElementById("loginError").style.display = "none";
+}
+
+  // Clear cart when Stripe redirects back with ?success=true
+  function checkSuccessParam() {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("success") === "true") {
+      cart = [];
+      renderCart();
+      document.getElementById("successBanner").style.display = "block";
+      setTimeout(() => {
+        document.getElementById("successBanner").style.display = "none";
+      }, 4000);
+      window.history.replaceState({}, "", "/");
+    }
+  }
+
+  // -------------------------
+  // PRODUCTS
+  // -------------------------
+  let cart = [];
+  let category = "tees";
+
+  const data = {
+    tees: [
+      { name: "9 Holes Walking", price: 40 },
+      { name: "9 Holes Cart", price: 55 },
+      { name: "18 Holes Walking", price: 70 },
+      { name: "18 Holes Cart", price: 85 }
+    ],
+    balls: [
+      { name: "Titleist Pro V1", price: 55 },
+      { name: "Callaway Chrome Soft", price: 50 },
+      { name: "TaylorMade TP5", price: 52 }
+    ],
+    drinks: [
+      { name: "Beer", price: 8 },
+      { name: "Soda", price: 3 },
+      { name: "Seltzer", price: 6 }
+    ],
+    snacks: [
+      { name: "Protein Bar", price: 5 },
+      { name: "Chex Mix", price: 4 },
+      { name: "Fruit Cup", price: 3 }
+    ]
+  };
+
+  function setCategory(cat, el) {
+    category = cat;
+    document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
+    el.classList.add("active");
+    renderProducts();
+  }
+
+  function renderProducts() {
+    const grid = document.getElementById("productGrid");
+    grid.innerHTML = "";
+    data[category].forEach(item => {
+      const div = document.createElement("div");
+      div.className = "tile";
+      div.innerHTML = `<b>${item.name}</b><div class="price">$${item.price}</div>`;
+      div.onclick = () => addItem(item.name, item.price);
+      grid.appendChild(div);
+    });
+  }
+
+  // -------------------------
+  // CART
+  // -------------------------
+  function addItem(name, price) {
+    cart.push({ name, price });
+    renderCart();
+  }
+
+  function removeItem(index) {
+    cart.splice(index, 1);
+    renderCart();
+  }
+
+  function clearCart() {
+    cart = [];
+    renderCart();
+  }
+
+  function renderCart() {
+    const div = document.getElementById("cartItems");
+    div.innerHTML = "";
+    let total = 0;
+
+    cart.forEach((item, i) => {
+      total += item.price;
+      const row = document.createElement("div");
+      row.className = "cart-item";
+      row.innerHTML = `
+        <span class="item-name">${item.name}</span>
+        <span>$${item.price}</span>
+        <span class="remove" onclick="removeItem(${i})">×</span>
+      `;
+      div.appendChild(row);
+    });
+
+    document.getElementById("total").innerText = total.toFixed(2);
+  }
+
+  // -------------------------
+  // CHECKOUT — relative URL, works on any domain
+  // -------------------------
+  async function checkout() {
+    if (cart.length === 0) {
+      alert("Cart is empty");
+      return;
+    }
+
+    try {
+      const res = await fetch("/pay", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ items: cart })
+      });
+
+      const result = await res.json();
+
+      if (result.url) {
+        window.location.href = result.url;
+      } else {
+        alert("Payment error — please try again");
+      }
+    } catch (err) {
+      alert("Could not connect to server");
+    }
+  }
+</script>
+</body>
+</html>

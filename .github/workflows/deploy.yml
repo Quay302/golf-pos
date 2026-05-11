@@ -1,0 +1,27 @@
+name: Deploy Flask to EC2
+
+on:
+  push:
+    branches: [ "main" ]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Deploy to EC2
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ec2-user
+          key: ${{ secrets.EC2_KEY }}
+          script: |
+            cd golf-pos
+            git pull origin main
+            pip3 install -r app/requirements.txt
+            sudo systemctl restart flaskapp
+            sleep 5
+            sudo systemctl status flaskapp --no-pager

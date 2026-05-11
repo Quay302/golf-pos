@@ -1,7 +1,7 @@
 #Files that should be ignored by git
 .env
 .venv/
-
+.claude
 #terraform files
 
 *.tfstate
