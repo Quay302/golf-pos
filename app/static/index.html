@@ -347,7 +347,7 @@ async function login() {
             document.getElementById("loginScreen").style.display = "none";
             document.getElementById("posApp").style.display = "block";
             renderProducts();
-            checkSuccessParam();
+            handlePostLoginCheck();
         } else {
             error.innerText = "Incorrect username or password";
             error.style.display = "block";
@@ -369,19 +369,31 @@ async function login() {
     document.getElementById("loginError").style.display = "none";
 }
 
-  // Clear cart when Stripe redirects back with ?success=true
+  // Store success flag before login screen appears
+  // Must run immediately on page load, before user logs in
   function checkSuccessParam() {
     const params = new URLSearchParams(window.location.search);
     if (params.get("success") === "true") {
+      sessionStorage.setItem("paymentSuccess", "true");
+      window.history.replaceState({}, "", "/");
+    }
+  }
+
+  // Show success banner if returning from Stripe payment
+  function handlePostLoginCheck() {
+    if (sessionStorage.getItem("paymentSuccess")) {
       cart = [];
       renderCart();
       document.getElementById("successBanner").style.display = "block";
       setTimeout(() => {
         document.getElementById("successBanner").style.display = "none";
       }, 4000);
-      window.history.replaceState({}, "", "/");
+      sessionStorage.removeItem("paymentSuccess");
     }
   }
+
+  // Run immediately on page load to catch ?success=true before login
+  checkSuccessParam();
 
   // -------------------------
   // PRODUCTS
