@@ -2,7 +2,7 @@
 <html>
 <head>
   <title>Country Club POS</title>
-  <script src="https://js.stripe.com/v3/"></script>
+  <script src="https://js.stripe.com/terminal/v1/"></script>
   <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet">
 
   <style>
@@ -25,9 +25,6 @@
       color: var(--text);
     }
 
-    /* -------------------------
-       LOGIN SCREEN
-    ------------------------- */
     #loginScreen {
       position: fixed;
       inset: 0;
@@ -72,9 +69,7 @@
       transition: border 0.2s;
     }
 
-    .login-box input:focus {
-      border-color: var(--green);
-    }
+    .login-box input:focus { border-color: var(--green); }
 
     .login-box button {
       width: 100%;
@@ -90,9 +85,7 @@
       transition: background 0.2s;
     }
 
-    .login-box button:hover {
-      background: var(--green-light);
-    }
+    .login-box button:hover { background: var(--green-light); }
 
     .login-error {
       color: #dc2626;
@@ -101,12 +94,7 @@
       display: none;
     }
 
-    /* -------------------------
-       POS APP
-    ------------------------- */
-    #posApp {
-      display: none;
-    }
+    #posApp { display: none; }
 
     header {
       background: var(--green);
@@ -119,21 +107,38 @@
       align-items: center;
     }
 
-    header span {
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    #readerStatus {
+      font-family: 'DM Sans', sans-serif;
+      font-size: 12px;
+      opacity: 0.8;
+      padding: 4px 10px;
+      border-radius: 20px;
+      background: rgba(255,255,255,0.15);
+    }
+
+    #readerStatus.connected { background: rgba(74,222,128,0.3); opacity: 1; }
+    #readerStatus.error { background: rgba(248,113,113,0.3); opacity: 1; }
+
+    header span.signout {
       font-family: 'DM Sans', sans-serif;
       font-size: 13px;
       opacity: 0.8;
       cursor: pointer;
     }
 
-    header span:hover { opacity: 1; }
+    header span.signout:hover { opacity: 1; }
 
     .layout {
       display: flex;
       height: calc(100vh - 52px);
     }
 
-    /* SIDEBAR */
     .sidebar {
       width: 170px;
       background: white;
@@ -155,7 +160,6 @@
     .tab:hover { background: #e2e8e4; }
     .tab.active { background: var(--green); color: white; }
 
-    /* PRODUCTS */
     .products {
       flex: 1;
       padding: 16px;
@@ -186,7 +190,6 @@
     .tile b { display: block; margin-bottom: 4px; font-size: 13px; }
     .tile .price { color: var(--green); font-weight: 600; font-size: 15px; }
 
-    /* CART */
     .cart {
       width: 300px;
       background: white;
@@ -248,6 +251,10 @@
     }
 
     .btn-checkout:hover { background: var(--green-light); }
+    .btn-checkout:disabled {
+      background: #9ca3af;
+      cursor: not-allowed;
+    }
 
     .btn-clear {
       margin-top: 8px;
@@ -268,6 +275,18 @@
       display: none;
       background: #d1fae5;
       color: #065f46;
+      padding: 12px 16px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 500;
+      margin-bottom: 10px;
+      text-align: center;
+    }
+
+    #paymentStatus {
+      display: none;
+      background: #eff6ff;
+      color: #1d4ed8;
       padding: 12px 16px;
       border-radius: 8px;
       font-size: 13px;
@@ -297,7 +316,10 @@
 <div id="posApp">
   <header>
     Country Club POS
-    <span onclick="logout()">⇠ Sign out</span>
+    <div class="header-right">
+      <span id="readerStatus">Connecting reader...</span>
+      <span class="signout" onclick="logout()">⇠ Sign out</span>
+    </div>
   </header>
 
   <div class="layout">
@@ -314,9 +336,10 @@
     <div class="cart">
       <h3>Cart</h3>
       <div id="successBanner">✓ Payment successful — cart cleared</div>
+      <div id="paymentStatus">⏳ Waiting for card tap...</div>
       <div class="cart-items" id="cartItems"></div>
       <div class="total">Total: $<span id="total">0.00</span></div>
-      <button class="btn-checkout" onclick="checkout()">Charge Customer</button>
+      <button class="btn-checkout" id="checkoutBtn" onclick="checkout()">Charge Customer</button>
       <button class="btn-clear" onclick="clearCart()">Clear Cart</button>
     </div>
 
@@ -324,76 +347,118 @@
 </div>
 
 <script>
-  // -------------------------
-let currentUser = null;
+  let currentUser = null;
+  let terminal = null;
 
-async function login() {
+  // -------------------------
+  // AUTH
+  // -------------------------
+  async function login() {
     const username = document.getElementById("username").value.trim();
     const password = document.getElementById("password").value;
     const error = document.getElementById("loginError");
 
-    error.style.display = "none"; // ← reset at the start of every attempt
+    error.style.display = "none";
 
     try {
-        const res = await fetch("/login", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ username, password })
-        });
+      const res = await fetch("/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username, password })
+      });
 
-        if (res.ok) {
-            const data = await res.json();
-            currentUser = data.username;
-            document.getElementById("loginScreen").style.display = "none";
-            document.getElementById("posApp").style.display = "block";
-            renderProducts();
-            handlePostLoginCheck();
-        } else {
-            error.innerText = "Incorrect username or password";
-            error.style.display = "block";
-        }
-    } catch (err) {
-        error.innerText = "Could not connect to server";
+      if (res.ok) {
+        const data = await res.json();
+        currentUser = data.username;
+        document.getElementById("loginScreen").style.display = "none";
+        document.getElementById("posApp").style.display = "block";
+        renderProducts();
+        initTerminal();
+      } else {
+        error.innerText = "Incorrect username or password";
         error.style.display = "block";
+      }
+    } catch (err) {
+      error.innerText = "Could not connect to server";
+      error.style.display = "block";
     }
-}
+  }
 
   async function logout() {
     await fetch("/logout", { method: "POST" });
     currentUser = null;
+    terminal = null;
     cart = [];
     document.getElementById("loginScreen").style.display = "flex";
     document.getElementById("posApp").style.display = "none";
     document.getElementById("username").value = "";
     document.getElementById("password").value = "";
     document.getElementById("loginError").style.display = "none";
-}
+    setReaderStatus("disconnected");
+  }
 
-  // Store success flag before login screen appears
-  // Must run immediately on page load, before user logs in
-  function checkSuccessParam() {
-    const params = new URLSearchParams(window.location.search);
-    if (params.get("success") === "true") {
-        // Store in localStorage — persists across redirects unlike sessionStorage
-        localStorage.setItem("paymentSuccess", "true");
-        window.history.replaceState({}, "", "/");
+  // -------------------------
+  // STRIPE TERMINAL
+  // -------------------------
+  function setReaderStatus(status) {
+    const el = document.getElementById("readerStatus");
+    el.className = "";
+    if (status === "connected") {
+      el.textContent = "✓ Reader ready";
+      el.className = "connected";
+      document.getElementById("checkoutBtn").disabled = false;
+    } else if (status === "connecting") {
+      el.textContent = "Connecting reader...";
+      document.getElementById("checkoutBtn").disabled = true;
+    } else if (status === "error") {
+      el.textContent = "⚠ Reader unavailable";
+      el.className = "error";
+      document.getElementById("checkoutBtn").disabled = true;
+    } else {
+      el.textContent = "";
+      document.getElementById("checkoutBtn").disabled = false;
     }
-}
+  }
 
-function handlePostLoginCheck() {
-    if (localStorage.getItem("paymentSuccess")) {
-        cart = [];
-        renderCart();
-        document.getElementById("successBanner").style.display = "block";
-        setTimeout(() => {
-            document.getElementById("successBanner").style.display = "none";
-        }, 4000);
-        localStorage.removeItem("paymentSuccess");
+  async function initTerminal() {
+    setReaderStatus("connecting");
+
+    terminal = StripeTerminal.create({
+      onFetchConnectionToken: async () => {
+        const res = await fetch("/terminal/connection-token", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" }
+        });
+        const data = await res.json();
+        return data.secret;
+      },
+      onUnexpectedReaderDisconnect: () => {
+        setReaderStatus("error");
+        alert("Reader disconnected — please refresh");
+      }
+    });
+
+    try {
+      const discoverResult = await terminal.discoverReaders({ simulated: true });
+
+      if (discoverResult.error || discoverResult.discoveredReaders.length === 0) {
+        setReaderStatus("error");
+        return;
+      }
+
+      const connectResult = await terminal.connectReader(
+        discoverResult.discoveredReaders[0]
+      );
+
+      if (connectResult.error) {
+        setReaderStatus("error");
+      } else {
+        setReaderStatus("connected");
+      }
+    } catch (err) {
+      setReaderStatus("error");
     }
-}
-
-  // Run immediately on page load to catch ?success=true before login
-  checkSuccessParam();
+  }
 
   // -------------------------
   // PRODUCTS
@@ -483,7 +548,7 @@ function handlePostLoginCheck() {
   }
 
   // -------------------------
-  // CHECKOUT — relative URL, works on any domain
+  // CHECKOUT — Stripe Terminal
   // -------------------------
   async function checkout() {
     if (cart.length === 0) {
@@ -491,22 +556,64 @@ function handlePostLoginCheck() {
       return;
     }
 
+    if (!terminal) {
+      alert("Terminal not ready — please refresh");
+      return;
+    }
+
+    const btn = document.getElementById("checkoutBtn");
+    const statusEl = document.getElementById("paymentStatus");
+
+    btn.disabled = true;
+    statusEl.style.display = "block";
+    statusEl.textContent = "⏳ Creating payment...";
+
     try {
-      const res = await fetch("/pay", {
+      // Create payment intent on backend
+      const res = await fetch("/terminal/create-payment-intent", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ items: cart })
       });
 
-      const result = await res.json();
+      const { client_secret, error: backendError } = await res.json();
 
-      if (result.url) {
-        window.location.href = result.url;
-      } else {
-        alert("Payment error — please try again");
+      if (backendError) {
+        throw new Error(backendError);
       }
+
+      // Collect payment on simulated reader
+      statusEl.textContent = "⏳ Waiting for card tap...";
+      const collectResult = await terminal.collectPaymentMethod(client_secret);
+
+      if (collectResult.error) {
+        throw new Error(collectResult.error.message);
+      }
+
+      // Process payment
+      statusEl.textContent = "⏳ Processing payment...";
+      const processResult = await terminal.processPayment(
+        collectResult.paymentIntent
+      );
+
+      if (processResult.error) {
+        throw new Error(processResult.error.message);
+      }
+
+      // Success
+      statusEl.style.display = "none";
+      cart = [];
+      renderCart();
+      document.getElementById("successBanner").style.display = "block";
+      setTimeout(() => {
+        document.getElementById("successBanner").style.display = "none";
+      }, 4000);
+
     } catch (err) {
-      alert("Could not connect to server");
+      statusEl.style.display = "none";
+      alert("Payment failed: " + err.message);
+    } finally {
+      btn.disabled = false;
     }
   }
 </script>

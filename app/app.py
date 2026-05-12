@@ -19,7 +19,7 @@ app.secret_key = os.getenv("FLASK_SECRET_KEY")
 stripe.api_key = os.getenv("STRIPE_SECRET_KEY")
 endpoint_secret = os.getenv("STRIPE_WEBHOOK_SECRET")
 
-# Session cookie config — required for session to survive Stripe redirect
+# Session cookie config
 app.config.update(
     SESSION_COOKIE_SECURE=True,
     SESSION_COOKIE_HTTPONLY=True,
@@ -35,8 +35,6 @@ app.config.update(
 def init_db():
     conn = sqlite3.connect("payments.db")
     c = conn.cursor()
-
-    # Fixed — one table named orders, used consistently
     c.execute("""
         CREATE TABLE IF NOT EXISTS orders (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -47,11 +45,11 @@ def init_db():
             created_at TEXT
         )
     """)
-
     conn.commit()
     conn.close()
 
 init_db()
+
 
 def login_required(f):
     @wraps(f)
@@ -60,6 +58,7 @@ def login_required(f):
             return jsonify({"error": "unauthorized"}), 401
         return f(*args, **kwargs)
     return decorated
+
 
 # -------------------------
 # AUTH
@@ -89,6 +88,7 @@ def logout():
     session.clear()
     return jsonify({"status": "logged out"})
 
+
 # -------------------------
 # SERVE FRONTEND
 # -------------------------
@@ -98,39 +98,34 @@ def index():
 
 
 # -------------------------
-# CREATE CHECKOUT SESSION
+# STRIPE TERMINAL
 # -------------------------
-@app.route("/pay", methods=["POST"])
+@app.route("/terminal/connection-token", methods=["POST"])
 @login_required
-def pay():
+def connection_token():
+    token = stripe.terminal.ConnectionToken.create()
+    return jsonify({"secret": token.secret})
+
+
+@app.route("/terminal/create-payment-intent", methods=["POST"])
+@login_required
+def create_payment_intent():
     data = request.json
     items = data.get("items", [])
 
     if not items:
         return jsonify({"error": "empty cart"}), 400
 
-    line_items = []
+    amount = sum(int(item["price"] * 100) for item in items)
 
-    for item in items:
-        line_items.append({
-            "price_data": {
-                "currency": "usd",
-                "product_data": {
-                    "name": item["name"]
-                },
-                "unit_amount": int(item["price"] * 100)
-            },
-            "quantity": 1
-        })
-
-    checkout_session = stripe.checkout.Session.create(
-        mode="payment",
-        line_items=line_items,
-        success_url=os.getenv("SUCCESS_URL", "https://acwebsite.click/success"),
-        cancel_url=os.getenv("CANCEL_URL", "https://acwebsite.click/cancel")
+    intent = stripe.PaymentIntent.create(
+        amount=amount,
+        currency="usd",
+        payment_method_types=["card_present"],
+        capture_method="automatic",
     )
 
-    return jsonify({"url": checkout_session.url})
+    return jsonify({"client_secret": intent.client_secret})
 
 
 # -------------------------
@@ -148,8 +143,8 @@ def webhook():
     except Exception:
         return jsonify({"error": "invalid webhook"}), 400
 
-    if event["type"] == "checkout.session.completed":
-        session = event["data"]["object"]
+    if event["type"] == "payment_intent.succeeded":
+        payment_intent = event["data"]["object"]
 
         conn = sqlite3.connect("payments.db")
         c = conn.cursor()
@@ -163,9 +158,9 @@ def webhook():
                 created_at
             ) VALUES (?, ?, ?, ?, ?)
         """, (
-            session["id"],
-            session["amount_total"] / 100,
-            str(session.get("metadata", {})),
+            payment_intent["id"],
+            payment_intent["amount"] / 100,
+            "terminal",
             "paid",
             datetime.utcnow().isoformat()
         ))
@@ -173,18 +168,17 @@ def webhook():
         conn.commit()
         conn.close()
 
-        print("ORDER SAVED:", session["id"])
+        print("ORDER SAVED:", payment_intent["id"])
 
     return jsonify({"status": "ok"})
 
 
 # -------------------------
-# ADMIN — protected by token
+# ADMIN
 # -------------------------
 @app.route("/admin/orders")
 @login_required
 def admin_orders():
-
     conn = sqlite3.connect("payments.db")
     c = conn.cursor()
     c.execute("SELECT * FROM orders ORDER BY id DESC")
