@@ -9,7 +9,7 @@ yum install -y python3 git
 amazon-linux-extras install nginx1 -y
 amazon-linux-extras install epel -y
 yum install -y certbot
-pip3 install certbot-nginx
+pip3 install "urllib3<2" certbot-nginx # Certbot's latest versions require urllib3<2, but Amazon Linux 2023 has urllib3 2.0.3, so we need to downgrade it to ensure compatibility.
 
 # Clone repo
 git clone https://github.com/Quay302/golf-pos.git /home/ec2-user/golf-pos
