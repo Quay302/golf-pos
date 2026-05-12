@@ -7,8 +7,6 @@ from functools import wraps
 from flask_cors import CORS
 from dotenv import load_dotenv
 
-load_dotenv()  # Load environment variables from .env file
-
 app = Flask(__name__)
 
 # Allow your domain
@@ -18,6 +16,13 @@ CORS(app, origins=[os.getenv("ALLOWED_ORIGIN", "https://acwebsite.click")])
 app.secret_key = os.getenv("FLASK_SECRET_KEY")
 stripe.api_key = os.getenv("STRIPE_SECRET_KEY")
 endpoint_secret = os.getenv("STRIPE_WEBHOOK_SECRET")
+
+# Session cookie config — required for session to survive Stripe redirect
+app.config.update(
+    SESSION_COOKIE_SECURE=True,
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE='Lax'
+)
 
 
 # -------------------------
