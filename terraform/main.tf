@@ -5,12 +5,12 @@ provider "aws" {
 resource "aws_security_group" "flask_sg" {
   name = "flask-sg"
 
-  # SSH — restricted to your IP only
+  # SSH — open for GitHub Actions deploys
   ingress {
     from_port   = 22
     to_port     = 22
     protocol    = "tcp"
-    cidr_blocks = [var.my_ip]
+    cidr_blocks = ["0.0.0.0/0"]
   }
 
   # HTTP
@@ -68,6 +68,7 @@ resource "aws_route53_record" "flask_a" {
   type    = "A"
   ttl     = 300
   records = [aws_eip.flask_eip.public_ip]
+  allow_overwrite = true
 }
 
 # www redirect
