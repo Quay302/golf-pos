@@ -3,312 +3,317 @@
 <head>
   <title>Country Club POS</title>
   <script src="https://js.stripe.com/terminal/v1/"></script>
-  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet">
-
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
   <style>
     :root {
       --green: #0b3d2e;
       --green-light: #145c44;
       --gold: #c9a84c;
       --bg: #f4f6f8;
-      --white: #ffffff;
       --border: #dde1e7;
       --text: #1a1a1a;
       --muted: #6b7280;
+      --red: #dc2626;
     }
-
     * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--text); }
 
-    body {
-      font-family: 'DM Sans', sans-serif;
-      background: var(--bg);
-      color: var(--text);
-    }
-
+    /* ---- LOGIN ---- */
     #loginScreen {
-      position: fixed;
-      inset: 0;
-      background: var(--green);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      z-index: 100;
+      position: fixed; inset: 0; background: var(--green);
+      display: flex; align-items: center; justify-content: center; z-index: 100;
     }
-
     .login-box {
-      background: white;
-      border-radius: 16px;
-      padding: 40px;
-      width: 360px;
-      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-      text-align: center;
+      background: white; border-radius: 16px; padding: 40px; width: 360px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3); text-align: center;
     }
-
-    .login-box h1 {
-      font-family: 'Playfair Display', serif;
-      color: var(--green);
-      font-size: 26px;
-      margin-bottom: 6px;
-    }
-
-    .login-box p {
-      color: var(--muted);
-      font-size: 13px;
-      margin-bottom: 28px;
-    }
-
+    .login-box h1 { font-family: 'Playfair Display', serif; color: var(--green); font-size: 26px; margin-bottom: 6px; }
+    .login-box p { color: var(--muted); font-size: 13px; margin-bottom: 28px; }
     .login-box input {
-      width: 100%;
-      padding: 12px 14px;
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      font-size: 14px;
-      margin-bottom: 12px;
-      font-family: 'DM Sans', sans-serif;
-      outline: none;
-      transition: border 0.2s;
+      width: 100%; padding: 12px 14px; border: 1px solid var(--border);
+      border-radius: 8px; font-size: 14px; margin-bottom: 12px;
+      font-family: 'DM Sans', sans-serif; outline: none; transition: border 0.2s;
     }
-
     .login-box input:focus { border-color: var(--green); }
-
     .login-box button {
-      width: 100%;
-      padding: 13px;
-      background: var(--green);
-      color: white;
-      border: none;
-      border-radius: 8px;
-      font-size: 15px;
-      font-family: 'DM Sans', sans-serif;
-      font-weight: 500;
-      cursor: pointer;
-      transition: background 0.2s;
+      width: 100%; padding: 13px; background: var(--green); color: white;
+      border: none; border-radius: 8px; font-size: 15px;
+      font-family: 'DM Sans', sans-serif; font-weight: 500; cursor: pointer; transition: background 0.2s;
     }
-
     .login-box button:hover { background: var(--green-light); }
+    .login-error { color: var(--red); font-size: 13px; margin-top: 10px; display: none; }
 
-    .login-error {
-      color: #dc2626;
-      font-size: 13px;
-      margin-top: 10px;
-      display: none;
-    }
-
+    /* ---- HEADER ---- */
     #posApp { display: none; }
-
     header {
-      background: var(--green);
-      color: white;
-      padding: 14px 20px;
-      font-size: 18px;
-      font-family: 'Playfair Display', serif;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
+      background: var(--green); color: white; padding: 14px 20px;
+      font-size: 18px; font-family: 'Playfair Display', serif;
+      display: flex; justify-content: space-between; align-items: center;
     }
-
-    .header-right {
-      display: flex;
-      align-items: center;
-      gap: 16px;
-    }
-
+    .header-right { display: flex; align-items: center; gap: 16px; }
     #readerStatus {
-      font-family: 'DM Sans', sans-serif;
-      font-size: 12px;
-      opacity: 0.8;
-      padding: 4px 10px;
-      border-radius: 20px;
-      background: rgba(255,255,255,0.15);
+      font-family: 'DM Sans', sans-serif; font-size: 12px; opacity: 0.8;
+      padding: 4px 10px; border-radius: 20px; background: rgba(255,255,255,0.15);
     }
-
     #readerStatus.connected { background: rgba(74,222,128,0.3); opacity: 1; }
     #readerStatus.error { background: rgba(248,113,113,0.3); opacity: 1; }
+    .signout { font-family: 'DM Sans', sans-serif; font-size: 13px; opacity: 0.8; cursor: pointer; }
+    .signout:hover { opacity: 1; }
 
-    header span.signout {
-      font-family: 'DM Sans', sans-serif;
-      font-size: 13px;
-      opacity: 0.8;
-      cursor: pointer;
-    }
+    /* ---- LAYOUT ---- */
+    .layout { display: flex; height: calc(100vh - 52px); }
 
-    header span.signout:hover { opacity: 1; }
-
-    .layout {
-      display: flex;
-      height: calc(100vh - 52px);
-    }
-
-    .sidebar {
-      width: 170px;
-      background: white;
-      border-right: 1px solid var(--border);
-      padding: 12px;
-    }
-
+    /* ---- SIDEBAR ---- */
+    .sidebar { width: 170px; background: white; border-right: 1px solid var(--border); padding: 12px; display: flex; flex-direction: column; gap: 6px; }
     .tab {
-      padding: 10px 12px;
-      margin-bottom: 6px;
-      background: #f1f1f1;
-      border-radius: 8px;
-      cursor: pointer;
-      font-size: 13px;
-      font-weight: 500;
-      transition: 0.15s;
+      padding: 10px 12px; background: #f1f1f1; border-radius: 8px;
+      cursor: pointer; font-size: 13px; font-weight: 500; transition: 0.15s;
     }
-
     .tab:hover { background: #e2e8e4; }
     .tab.active { background: var(--green); color: white; }
+    .sidebar-divider { border: none; border-top: 1px solid var(--border); margin: 4px 0; }
+    .tab.manager-tab { color: var(--muted); font-size: 12px; }
+    .tab.manager-tab.active { background: var(--gold); color: white; }
 
+    /* ---- PRODUCTS ---- */
     .products {
-      flex: 1;
-      padding: 16px;
-      overflow-y: auto;
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 10px;
-      align-content: start;
+      flex: 1; padding: 16px; overflow-y: auto;
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; align-content: start;
     }
-
     .tile {
-      background: white;
-      padding: 14px;
-      border-radius: 10px;
-      border: 1px solid var(--border);
-      cursor: pointer;
-      text-align: center;
-      transition: 0.15s;
-      font-size: 13px;
+      background: white; padding: 14px; border-radius: 10px;
+      border: 1px solid var(--border); cursor: pointer; text-align: center; transition: 0.15s; font-size: 13px;
     }
-
-    .tile:hover {
-      border-color: var(--green);
-      transform: translateY(-1px);
-      box-shadow: 0 4px 12px rgba(0,0,0,0.08);
-    }
-
+    .tile:hover { border-color: var(--green); transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
     .tile b { display: block; margin-bottom: 4px; font-size: 13px; }
     .tile .price { color: var(--green); font-weight: 600; font-size: 15px; }
 
+    /* ---- SETTINGS PANEL ---- */
+    #settingsPanel { flex: 1; padding: 20px; overflow-y: auto; display: none; }
+    .settings-tabs { display: flex; gap: 8px; margin-bottom: 20px; }
+    .settings-tab {
+      padding: 8px 16px; border-radius: 8px; cursor: pointer;
+      font-size: 13px; font-weight: 500; border: 1px solid var(--border); background: white;
+    }
+    .settings-tab.active { background: var(--green); color: white; border-color: var(--green); }
+    .settings-section { display: none; }
+    .settings-section.active { display: block; }
+    .settings-card { background: white; border-radius: 12px; border: 1px solid var(--border); padding: 20px; margin-bottom: 16px; }
+    .settings-card h3 { font-family: 'Playfair Display', serif; color: var(--green); font-size: 17px; margin-bottom: 14px; }
+    .form-row { display: flex; gap: 8px; margin-bottom: 12px; align-items: center; }
+    .form-row input, .form-row select {
+      flex: 1; padding: 9px 12px; border: 1px solid var(--border); border-radius: 8px;
+      font-size: 13px; font-family: 'DM Sans', sans-serif; outline: none;
+    }
+    .form-row input:focus, .form-row select:focus { border-color: var(--green); }
+    .btn-add {
+      padding: 9px 16px; background: var(--green); color: white; border: none;
+      border-radius: 8px; cursor: pointer; font-size: 13px; font-family: 'DM Sans', sans-serif;
+      font-weight: 500; white-space: nowrap;
+    }
+    .btn-add:hover { background: var(--green-light); }
+    .item-row {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 9px 0; border-bottom: 1px solid #f0f0f0; font-size: 13px;
+    }
+    .item-row .item-info { flex: 1; }
+    .item-row .item-actions { display: flex; gap: 8px; }
+    .btn-icon {
+      padding: 5px 10px; border-radius: 6px; cursor: pointer; font-size: 12px;
+      border: 1px solid var(--border); background: white; font-family: 'DM Sans', sans-serif;
+    }
+    .btn-icon.danger { color: var(--red); border-color: var(--red); }
+    .btn-icon.danger:hover { background: #fef2f2; }
+    .badge-code {
+      display: inline-block; padding: 3px 8px; border-radius: 12px;
+      font-size: 11px; font-weight: 600; background: #f3f4f6; color: #374151;
+      font-family: monospace; margin-right: 6px;
+    }
+    .badge-active { background: #d1fae5; color: #065f46; }
+    .badge-inactive { background: #fee2e2; color: #991b1b; }
+
+    /* ---- CART ---- */
     .cart {
-      width: 300px;
-      background: white;
-      border-left: 1px solid var(--border);
-      padding: 16px;
-      display: flex;
-      flex-direction: column;
+      width: 300px; background: white; border-left: 1px solid var(--border);
+      padding: 16px; display: flex; flex-direction: column;
     }
-
-    .cart h3 {
-      font-family: 'Playfair Display', serif;
-      font-size: 18px;
-      margin-bottom: 12px;
-      color: var(--green);
-    }
-
+    .cart h3 { font-family: 'Playfair Display', serif; font-size: 18px; margin-bottom: 12px; color: var(--green); }
     .cart-items { flex: 1; overflow-y: auto; }
-
     .cart-item {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      font-size: 13px;
-      padding: 7px 0;
-      border-bottom: 1px solid #f0f0f0;
+      display: flex; align-items: center; font-size: 13px;
+      padding: 6px 0; border-bottom: 1px solid #f0f0f0; gap: 6px;
     }
-
-    .cart-item .remove {
-      color: #dc2626;
-      cursor: pointer;
-      font-size: 18px;
-      padding: 0 4px;
-      line-height: 1;
+    .cart-item .item-name { flex: 1; }
+    .qty-controls { display: flex; align-items: center; gap: 4px; }
+    .qty-btn {
+      width: 22px; height: 22px; border-radius: 50%; border: 1px solid var(--border);
+      background: white; cursor: pointer; font-size: 14px; display: flex;
+      align-items: center; justify-content: center; font-family: 'DM Sans', sans-serif;
     }
+    .qty-btn:hover { background: #f1f1f1; }
+    .qty-num { font-weight: 600; font-size: 13px; min-width: 18px; text-align: center; }
+    .item-price { font-size: 13px; min-width: 40px; text-align: right; }
+    .remove-btn { color: var(--red); cursor: pointer; font-size: 16px; padding: 0 2px; }
 
-    .cart-item .item-name { flex: 1; margin-right: 8px; }
-
-    .total {
-      font-size: 20px;
-      font-weight: 700;
-      margin-top: 14px;
-      padding-top: 12px;
-      border-top: 2px solid var(--border);
-      color: var(--green);
+    /* Custom item */
+    .custom-item-form { margin: 10px 0 4px; }
+    .custom-item-form label { font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; display: block; margin-bottom: 6px; }
+    .custom-row { display: flex; gap: 6px; }
+    .custom-row input {
+      flex: 1; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px;
+      font-size: 12px; font-family: 'DM Sans', sans-serif; outline: none;
     }
+    .custom-row input:focus { border-color: var(--green); }
+    .custom-row .price-input { width: 70px; flex: none; }
+    .btn-custom-add {
+      padding: 8px 12px; background: #f1f1f1; border: 1px solid var(--border);
+      border-radius: 8px; cursor: pointer; font-size: 13px; font-family: 'DM Sans', sans-serif;
+      white-space: nowrap;
+    }
+    .btn-custom-add:hover { background: #e2e8e4; }
 
+    /* Discount */
+    .discount-form { margin: 10px 0 4px; }
+    .discount-form label { font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; display: block; margin-bottom: 6px; }
+    .discount-row { display: flex; gap: 6px; }
+    .discount-row input {
+      flex: 1; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px;
+      font-size: 12px; font-family: 'DM Sans', sans-serif; outline: none; text-transform: uppercase;
+    }
+    .discount-row input:focus { border-color: var(--green); }
+    .btn-apply {
+      padding: 8px 12px; background: #f1f1f1; border: 1px solid var(--border);
+      border-radius: 8px; cursor: pointer; font-size: 13px; font-family: 'DM Sans', sans-serif;
+    }
+    .btn-apply:hover { background: #e2e8e4; }
+    #discountInfo { font-size: 12px; margin-top: 4px; display: none; }
+    #discountInfo.valid { color: #065f46; }
+    #discountInfo.invalid { color: var(--red); }
+
+    /* Totals */
+    .totals-section { margin-top: 12px; padding-top: 12px; border-top: 2px solid var(--border); }
+    .total-row { display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 4px; }
+    .total-row.discount { color: #065f46; }
+    .total-row.grand { font-size: 18px; font-weight: 700; color: var(--green); margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--border); }
+
+    /* Buttons */
+    .btn-group { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
     .btn-checkout {
-      margin-top: 12px;
-      padding: 14px;
-      background: var(--green);
-      color: white;
-      border: none;
-      border-radius: 8px;
-      cursor: pointer;
-      font-size: 15px;
-      font-family: 'DM Sans', sans-serif;
-      font-weight: 500;
-      transition: background 0.2s;
+      padding: 13px; background: var(--green); color: white; border: none;
+      border-radius: 8px; cursor: pointer; font-size: 14px;
+      font-family: 'DM Sans', sans-serif; font-weight: 500; transition: background 0.2s;
     }
-
     .btn-checkout:hover { background: var(--green-light); }
-    .btn-checkout:disabled {
-      background: #9ca3af;
-      cursor: not-allowed;
+    .btn-checkout:disabled { background: #9ca3af; cursor: not-allowed; }
+    .btn-link {
+      padding: 13px; background: white; color: var(--green); border: 2px solid var(--green);
+      border-radius: 8px; cursor: pointer; font-size: 14px;
+      font-family: 'DM Sans', sans-serif; font-weight: 500; transition: 0.15s;
     }
-
+    .btn-link:hover { background: #f0f7f4; }
     .btn-clear {
-      margin-top: 8px;
-      padding: 10px;
-      background: white;
-      color: #dc2626;
-      border: 1px solid #dc2626;
-      border-radius: 8px;
-      cursor: pointer;
-      font-size: 13px;
-      font-family: 'DM Sans', sans-serif;
-      transition: 0.15s;
+      padding: 9px; background: white; color: var(--red); border: 1px solid var(--red);
+      border-radius: 8px; cursor: pointer; font-size: 13px;
+      font-family: 'DM Sans', sans-serif; transition: 0.15s;
     }
-
     .btn-clear:hover { background: #fef2f2; }
 
-    #successBanner {
-      display: none;
-      background: #d1fae5;
-      color: #065f46;
-      padding: 12px 16px;
-      border-radius: 8px;
-      font-size: 13px;
-      font-weight: 500;
-      margin-bottom: 10px;
-      text-align: center;
+    /* Banners */
+    #successBanner, #paymentStatus {
+      padding: 10px 14px; border-radius: 8px; font-size: 13px;
+      font-weight: 500; margin-bottom: 8px; text-align: center; display: none;
     }
+    #successBanner { background: #d1fae5; color: #065f46; }
+    #paymentStatus { background: #eff6ff; color: #1d4ed8; }
 
-    #paymentStatus {
-      display: none;
-      background: #eff6ff;
-      color: #1d4ed8;
-      padding: 12px 16px;
-      border-radius: 8px;
-      font-size: 13px;
-      font-weight: 500;
-      margin-bottom: 10px;
-      text-align: center;
+    /* ---- MODALS ---- */
+    .modal-overlay {
+      display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5);
+      z-index: 200; align-items: center; justify-content: center;
     }
+    .modal-overlay.show { display: flex; }
+    .modal-box {
+      background: white; border-radius: 16px; padding: 32px; width: 440px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+    }
+    .modal-box h2 { font-family: 'Playfair Display', serif; color: var(--green); font-size: 22px; margin-bottom: 8px; }
+    .modal-box p { color: var(--muted); font-size: 13px; margin-bottom: 16px; }
+
+    /* Link modal */
+    .link-display {
+      background: #f4f6f8; border: 1px solid var(--border); border-radius: 8px;
+      padding: 12px; font-size: 12px; word-break: break-all; color: #374151;
+      margin-bottom: 14px; text-align: left;
+    }
+    .modal-buttons { display: flex; gap: 8px; }
+    .btn-copy {
+      flex: 1; padding: 12px; background: var(--green); color: white; border: none;
+      border-radius: 8px; cursor: pointer; font-size: 14px;
+      font-family: 'DM Sans', sans-serif; font-weight: 500;
+    }
+    .btn-copy:hover { background: var(--green-light); }
+    .btn-close-modal {
+      flex: 1; padding: 12px; background: white; color: var(--muted);
+      border: 1px solid var(--border); border-radius: 8px; cursor: pointer;
+      font-size: 14px; font-family: 'DM Sans', sans-serif;
+    }
+    .btn-close-modal:hover { background: #f9fafb; }
+    .copy-confirm { font-size: 12px; color: #065f46; margin-top: 8px; display: none; text-align: center; }
+
+    /* Receipt modal */
+    .receipt-body { border: 1px solid var(--border); border-radius: 8px; padding: 16px; margin-bottom: 16px; }
+    .receipt-header { text-align: center; margin-bottom: 14px; padding-bottom: 10px; border-bottom: 1px dashed var(--border); }
+    .receipt-header .order-num { font-size: 18px; font-weight: 700; color: var(--green); }
+    .receipt-header .receipt-time { font-size: 12px; color: var(--muted); }
+    .receipt-items { margin-bottom: 12px; }
+    .receipt-item { display: flex; justify-content: space-between; font-size: 13px; padding: 4px 0; }
+    .receipt-totals { border-top: 1px dashed var(--border); padding-top: 10px; }
+    .receipt-total-row { display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 4px; }
+    .receipt-total-row.discount { color: #065f46; }
+    .receipt-total-row.grand { font-size: 16px; font-weight: 700; color: var(--green); padding-top: 6px; border-top: 1px dashed var(--border); margin-top: 4px; }
+    .receipt-method { text-align: center; margin-top: 12px; font-size: 12px; color: var(--muted); }
+    .btn-receipt-close {
+      width: 100%; padding: 13px; background: var(--green); color: white; border: none;
+      border-radius: 8px; cursor: pointer; font-size: 15px;
+      font-family: 'DM Sans', sans-serif; font-weight: 500;
+    }
+    .btn-receipt-close:hover { background: var(--green-light); }
   </style>
 </head>
-
 <body>
 
-<!-- LOGIN SCREEN -->
+<!-- LOGIN -->
 <div id="loginScreen">
   <div class="login-box">
     <h1>Country Club POS</h1>
     <p>Staff access only — sign in to continue</p>
     <input type="text" id="username" placeholder="Username" />
-    <input type="password" id="password" placeholder="Password"
-           onkeydown="if(event.key==='Enter') login()" />
+    <input type="password" id="password" placeholder="Password" onkeydown="if(event.key==='Enter') login()" />
     <button onclick="login()">Sign In</button>
     <div class="login-error" id="loginError">Incorrect username or password</div>
+  </div>
+</div>
+
+<!-- LINK MODAL -->
+<div class="modal-overlay" id="linkModal">
+  <div class="modal-box">
+    <h2>Payment Link</h2>
+    <p>Share this link with the customer to complete payment on their device</p>
+    <div class="link-display" id="linkUrl">Generating...</div>
+    <div class="modal-buttons">
+      <button class="btn-copy" onclick="copyLink()">Copy Link</button>
+      <button class="btn-close-modal" onclick="closeLink()">Done</button>
+    </div>
+    <div class="copy-confirm" id="copyConfirm">✓ Copied to clipboard</div>
+  </div>
+</div>
+
+<!-- RECEIPT MODAL -->
+<div class="modal-overlay" id="receiptModal">
+  <div class="modal-box">
+    <h2>Receipt</h2>
+    <div class="receipt-body" id="receiptBody"></div>
+    <button class="btn-receipt-close" onclick="closeReceipt()">Done</button>
   </div>
 </div>
 
@@ -317,47 +322,79 @@
   <header>
     Country Club POS
     <div class="header-right">
-      <span id="readerStatus">Connecting reader...</span>
+      <span id="readerStatus">Connecting...</span>
       <span class="signout" onclick="logout()">⇠ Sign out</span>
     </div>
   </header>
 
   <div class="layout">
-
-    <div class="sidebar">
-      <div class="tab active" onclick="setCategory('tees', this)">Tee Times</div>
-      <div class="tab" onclick="setCategory('balls', this)">Golf Balls</div>
-      <div class="tab" onclick="setCategory('drinks', this)">Drinks</div>
-      <div class="tab" onclick="setCategory('snacks', this)">Snacks</div>
+    <div class="sidebar" id="sidebar">
+      <div class="tab active" onclick="setCategory('tees', this)" id="tab-tees">Tee Times</div>
+      <div class="tab" onclick="setCategory('balls', this)" id="tab-balls">Golf Balls</div>
+      <div class="tab" onclick="setCategory('drinks', this)" id="tab-drinks">Drinks</div>
+      <div class="tab" onclick="setCategory('snacks', this)" id="tab-snacks">Snacks</div>
+      <hr class="sidebar-divider" id="managerDivider" style="display:none">
+      <div class="tab manager-tab" onclick="showSettings(this)" id="tab-settings" style="display:none">⚙ Settings</div>
     </div>
 
     <div class="products" id="productGrid"></div>
+    <div id="settingsPanel"></div>
 
     <div class="cart">
       <h3>Cart</h3>
-      <div id="successBanner">✓ Payment successful — cart cleared</div>
-      <div id="paymentStatus">⏳ Waiting for card tap...</div>
+      <div id="successBanner">✓ Payment successful</div>
+      <div id="paymentStatus">⏳ Processing...</div>
       <div class="cart-items" id="cartItems"></div>
-      <div class="total">Total: $<span id="total">0.00</span></div>
-      <button class="btn-checkout" id="checkoutBtn" onclick="checkout()">Charge Customer</button>
-      <button class="btn-clear" onclick="clearCart()">Clear Cart</button>
-    </div>
 
+      <div class="custom-item-form">
+        <label>Custom Item</label>
+        <div class="custom-row">
+          <input type="text" id="customName" placeholder="Description" />
+          <input type="number" id="customPrice" placeholder="$" class="price-input" min="0" step="0.01" />
+          <button class="btn-custom-add" onclick="addCustomItem()">+ Add</button>
+        </div>
+      </div>
+
+      <div class="discount-form">
+        <label>Discount Code</label>
+        <div class="discount-row">
+          <input type="text" id="discountCode" placeholder="Enter code" />
+          <button class="btn-apply" onclick="applyDiscount()">Apply</button>
+        </div>
+        <div id="discountInfo"></div>
+      </div>
+
+      <div class="totals-section">
+        <div class="total-row"><span>Subtotal</span><span id="subtotalDisplay">$0.00</span></div>
+        <div class="total-row discount" id="discountRow" style="display:none">
+          <span id="discountLabel">Discount</span>
+          <span id="discountDisplay">-$0.00</span>
+        </div>
+        <div class="total-row grand"><span>Total</span><span id="totalDisplay">$0.00</span></div>
+      </div>
+
+      <div class="btn-group">
+        <button class="btn-checkout" id="checkoutBtn" onclick="checkoutTerminal()">💳 Tap to Pay</button>
+        <button class="btn-link" onclick="checkoutLink()">🔗 Send Payment Link</button>
+        <button class="btn-clear" onclick="clearCart()">Clear Cart</button>
+      </div>
+    </div>
   </div>
 </div>
 
 <script>
   let currentUser = null;
+  let currentRole = null;
   let terminal = null;
+  let currentPaymentLink = null;
+  let appliedDiscount = null;
+  let products = {};
 
-  // -------------------------
-  // AUTH
-  // -------------------------
+  // ---- AUTH ----
   async function login() {
     const username = document.getElementById("username").value.trim();
     const password = document.getElementById("password").value;
     const error = document.getElementById("loginError");
-
     error.style.display = "none";
 
     try {
@@ -370,8 +407,16 @@
       if (res.ok) {
         const data = await res.json();
         currentUser = data.username;
+        currentRole = data.role;
         document.getElementById("loginScreen").style.display = "none";
         document.getElementById("posApp").style.display = "block";
+
+        if (currentRole === "manager") {
+          document.getElementById("managerDivider").style.display = "block";
+          document.getElementById("tab-settings").style.display = "block";
+        }
+
+        await loadProducts();
         renderProducts();
         initTerminal();
       } else {
@@ -387,133 +432,111 @@
   async function logout() {
     await fetch("/logout", { method: "POST" });
     currentUser = null;
+    currentRole = null;
     terminal = null;
     cart = [];
+    appliedDiscount = null;
     document.getElementById("loginScreen").style.display = "flex";
     document.getElementById("posApp").style.display = "none";
     document.getElementById("username").value = "";
     document.getElementById("password").value = "";
-    document.getElementById("loginError").style.display = "none";
+    document.getElementById("managerDivider").style.display = "none";
+    document.getElementById("tab-settings").style.display = "none";
     setReaderStatus("disconnected");
   }
 
-  // -------------------------
-  // STRIPE TERMINAL
-  // -------------------------
+  // ---- TERMINAL ----
   function setReaderStatus(status) {
     const el = document.getElementById("readerStatus");
     el.className = "";
+    const btn = document.getElementById("checkoutBtn");
     if (status === "connected") {
-      el.textContent = "✓ Reader ready";
-      el.className = "connected";
-      document.getElementById("checkoutBtn").disabled = false;
+      el.textContent = "✓ Reader ready"; el.className = "connected"; btn.disabled = false;
     } else if (status === "connecting") {
-      el.textContent = "Connecting reader...";
-      document.getElementById("checkoutBtn").disabled = true;
+      el.textContent = "Connecting..."; btn.disabled = true;
     } else if (status === "error") {
-      el.textContent = "⚠ Reader unavailable";
-      el.className = "error";
-      document.getElementById("checkoutBtn").disabled = true;
+      el.textContent = "⚠ Reader unavailable"; el.className = "error"; btn.disabled = true;
     } else {
-      el.textContent = "";
-      document.getElementById("checkoutBtn").disabled = false;
+      el.textContent = ""; btn.disabled = false;
     }
   }
 
   async function initTerminal() {
     setReaderStatus("connecting");
-
     terminal = StripeTerminal.create({
       onFetchConnectionToken: async () => {
-        const res = await fetch("/terminal/connection-token", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" }
-        });
-        const data = await res.json();
-        return data.secret;
+        const res = await fetch("/terminal/connection-token", { method: "POST", headers: { "Content-Type": "application/json" } });
+        return (await res.json()).secret;
       },
-      onUnexpectedReaderDisconnect: () => {
-        setReaderStatus("error");
-        alert("Reader disconnected — please refresh");
-      }
+      onUnexpectedReaderDisconnect: () => { setReaderStatus("error"); }
     });
 
     try {
-      const discoverResult = await terminal.discoverReaders({ simulated: true });
-
-      if (discoverResult.error || discoverResult.discoveredReaders.length === 0) {
-        setReaderStatus("error");
-        return;
-      }
-
-      const connectResult = await terminal.connectReader(
-        discoverResult.discoveredReaders[0]
-      );
-
-      if (connectResult.error) {
-        setReaderStatus("error");
-      } else {
-        setReaderStatus("connected");
-      }
-    } catch (err) {
-      setReaderStatus("error");
-    }
+      const result = await terminal.discoverReaders({ simulated: true });
+      if (result.error || !result.discoveredReaders.length) { setReaderStatus("error"); return; }
+      const conn = await terminal.connectReader(result.discoveredReaders[0]);
+      conn.error ? setReaderStatus("error") : setReaderStatus("connected");
+    } catch { setReaderStatus("error"); }
   }
 
-  // -------------------------
-  // PRODUCTS
-  // -------------------------
+  // ---- PRODUCTS ----
   let cart = [];
   let category = "tees";
 
-  const data = {
-    tees: [
-      { name: "9 Holes Walking", price: 40 },
-      { name: "9 Holes Cart", price: 55 },
-      { name: "18 Holes Walking", price: 70 },
-      { name: "18 Holes Cart", price: 85 }
-    ],
-    balls: [
-      { name: "Titleist Pro V1", price: 55 },
-      { name: "Callaway Chrome Soft", price: 50 },
-      { name: "TaylorMade TP5", price: 52 }
-    ],
-    drinks: [
-      { name: "Beer", price: 8 },
-      { name: "Soda", price: 3 },
-      { name: "Seltzer", price: 6 }
-    ],
-    snacks: [
-      { name: "Protein Bar", price: 5 },
-      { name: "Chex Mix", price: 4 },
-      { name: "Fruit Cup", price: 3 }
-    ]
-  };
+  async function loadProducts() {
+    try {
+      const res = await fetch("/products");
+      products = await res.json();
+    } catch { products = {}; }
+  }
 
   function setCategory(cat, el) {
     category = cat;
     document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
     el.classList.add("active");
+    document.getElementById("productGrid").style.display = "grid";
+    document.getElementById("settingsPanel").style.display = "none";
     renderProducts();
   }
 
   function renderProducts() {
     const grid = document.getElementById("productGrid");
     grid.innerHTML = "";
-    data[category].forEach(item => {
+    const items = products[category] || [];
+    if (items.length === 0) {
+      grid.innerHTML = '<div style="padding:20px;color:var(--muted);grid-column:1/-1">No products in this category.</div>';
+      return;
+    }
+    items.forEach(item => {
       const div = document.createElement("div");
       div.className = "tile";
-      div.innerHTML = `<b>${item.name}</b><div class="price">$${item.price}</div>`;
+      div.innerHTML = `<b>${item.name}</b><div class="price">$${item.price.toFixed(2)}</div>`;
       div.onclick = () => addItem(item.name, item.price);
       grid.appendChild(div);
     });
   }
 
-  // -------------------------
-  // CART
-  // -------------------------
+  // ---- CART ----
   function addItem(name, price) {
-    cart.push({ name, price });
+    const existing = cart.find(i => i.name === name && !i.custom);
+    if (existing) { existing.quantity++; }
+    else { cart.push({ name, price, quantity: 1, custom: false }); }
+    renderCart();
+  }
+
+  function addCustomItem() {
+    const name = document.getElementById("customName").value.trim();
+    const price = parseFloat(document.getElementById("customPrice").value);
+    if (!name || isNaN(price) || price <= 0) { alert("Enter a description and price"); return; }
+    cart.push({ name, price, quantity: 1, custom: true });
+    document.getElementById("customName").value = "";
+    document.getElementById("customPrice").value = "";
+    renderCart();
+  }
+
+  function changeQty(index, delta) {
+    cart[index].quantity += delta;
+    if (cart[index].quantity <= 0) cart.splice(index, 1);
     renderCart();
   }
 
@@ -524,90 +547,122 @@
 
   function clearCart() {
     cart = [];
+    appliedDiscount = null;
+    document.getElementById("discountCode").value = "";
+    document.getElementById("discountInfo").style.display = "none";
+    document.getElementById("discountRow").style.display = "none";
     renderCart();
   }
 
   function renderCart() {
     const div = document.getElementById("cartItems");
     div.innerHTML = "";
-    let total = 0;
+    let subtotal = 0;
 
     cart.forEach((item, i) => {
-      total += item.price;
+      const lineTotal = item.price * item.quantity;
+      subtotal += lineTotal;
       const row = document.createElement("div");
       row.className = "cart-item";
       row.innerHTML = `
-        <span class="item-name">${item.name}</span>
-        <span>$${item.price}</span>
-        <span class="remove" onclick="removeItem(${i})">×</span>
+        <span class="item-name">${item.name}${item.custom ? ' <em style="color:var(--muted);font-size:11px">(custom)</em>' : ''}</span>
+        <div class="qty-controls">
+          <button class="qty-btn" onclick="changeQty(${i}, -1)">−</button>
+          <span class="qty-num">${item.quantity}</span>
+          <button class="qty-btn" onclick="changeQty(${i}, 1)">+</button>
+        </div>
+        <span class="item-price">$${lineTotal.toFixed(2)}</span>
+        <span class="remove-btn" onclick="removeItem(${i})">×</span>
       `;
       div.appendChild(row);
     });
 
-    document.getElementById("total").innerText = total.toFixed(2);
+    const discountAmt = appliedDiscount ? appliedDiscount.discount : 0;
+    const total = Math.max(0, subtotal - discountAmt);
+
+    document.getElementById("subtotalDisplay").textContent = `$${subtotal.toFixed(2)}`;
+    document.getElementById("totalDisplay").textContent = `$${total.toFixed(2)}`;
+
+    if (appliedDiscount && discountAmt > 0) {
+      document.getElementById("discountRow").style.display = "flex";
+      document.getElementById("discountLabel").textContent = `Discount (${appliedDiscount.label})`;
+      document.getElementById("discountDisplay").textContent = `-$${discountAmt.toFixed(2)}`;
+    } else {
+      document.getElementById("discountRow").style.display = "none";
+    }
   }
 
-  // -------------------------
-  // CHECKOUT — Stripe Terminal
-  // -------------------------
-  async function checkout() {
-    if (cart.length === 0) {
-      alert("Cart is empty");
-      return;
-    }
+  // ---- DISCOUNT ----
+  async function applyDiscount() {
+    const code = document.getElementById("discountCode").value.trim();
+    const info = document.getElementById("discountInfo");
+    if (!code) return;
 
-    if (!terminal) {
-      alert("Terminal not ready — please refresh");
-      return;
+    const subtotal = cart.reduce((s, i) => s + i.price * i.quantity, 0);
+
+    try {
+      const res = await fetch("/discount/validate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code, subtotal })
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        appliedDiscount = data;
+        info.textContent = `✓ ${data.label} applied`;
+        info.className = "valid";
+        info.style.display = "block";
+        renderCart();
+      } else {
+        appliedDiscount = null;
+        info.textContent = "Invalid or inactive code";
+        info.className = "invalid";
+        info.style.display = "block";
+        renderCart();
+      }
+    } catch {
+      info.textContent = "Could not validate code";
+      info.className = "invalid";
+      info.style.display = "block";
     }
+  }
+
+  // ---- CHECKOUT — TERMINAL ----
+  async function checkoutTerminal() {
+    if (!cart.length) { alert("Cart is empty"); return; }
+    if (!terminal) { alert("Terminal not ready — please refresh"); return; }
 
     const btn = document.getElementById("checkoutBtn");
     const statusEl = document.getElementById("paymentStatus");
-
     btn.disabled = true;
     statusEl.style.display = "block";
     statusEl.textContent = "⏳ Creating payment...";
 
+    const discountAmount = appliedDiscount ? appliedDiscount.discount : 0;
+
     try {
-      // Create payment intent on backend
       const res = await fetch("/terminal/create-payment-intent", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ items: cart })
+        body: JSON.stringify({ items: cart, discount_amount: discountAmount })
       });
 
-      const { client_secret, error: backendError } = await res.json();
+      const { client_secret, error: be } = await res.json();
+      if (be) throw new Error(be);
 
-      if (backendError) {
-        throw new Error(backendError);
-      }
-
-      // Collect payment on simulated reader
       statusEl.textContent = "⏳ Waiting for card tap...";
-      const collectResult = await terminal.collectPaymentMethod(client_secret);
+      const collect = await terminal.collectPaymentMethod(client_secret);
+      if (collect.error) throw new Error(collect.error.message);
 
-      if (collectResult.error) {
-        throw new Error(collectResult.error.message);
-      }
-
-      // Process payment
       statusEl.textContent = "⏳ Processing payment...";
-      const processResult = await terminal.processPayment(
-        collectResult.paymentIntent
-      );
+      const process = await terminal.processPayment(collect.paymentIntent);
+      if (process.error) throw new Error(process.error.message);
 
-      if (processResult.error) {
-        throw new Error(processResult.error.message);
-      }
-
-      // Success
       statusEl.style.display = "none";
-      cart = [];
-      renderCart();
-      document.getElementById("successBanner").style.display = "block";
-      setTimeout(() => {
-        document.getElementById("successBanner").style.display = "none";
-      }, 4000);
+      const subtotal = cart.reduce((s, i) => s + i.price * i.quantity, 0);
+      showReceipt(subtotal, discountAmount, "terminal");
+      clearCart();
 
     } catch (err) {
       statusEl.style.display = "none";
@@ -615,6 +670,241 @@
     } finally {
       btn.disabled = false;
     }
+  }
+
+  // ---- CHECKOUT — LINK ----
+  async function checkoutLink() {
+    if (!cart.length) { alert("Cart is empty"); return; }
+
+    const discountAmount = appliedDiscount ? appliedDiscount.discount : 0;
+
+    try {
+      const res = await fetch("/pay/link", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ items: cart, discount_amount: discountAmount })
+      });
+
+      const result = await res.json();
+      if (result.url) {
+        currentPaymentLink = result.url;
+        document.getElementById("linkUrl").textContent = result.url;
+        document.getElementById("copyConfirm").style.display = "none";
+        document.getElementById("linkModal").classList.add("show");
+      } else {
+        alert("Could not generate payment link");
+      }
+    } catch { alert("Could not connect to server"); }
+  }
+
+  function copyLink() {
+    if (!currentPaymentLink) return;
+    navigator.clipboard.writeText(currentPaymentLink).then(() => {
+      document.getElementById("copyConfirm").style.display = "block";
+    });
+  }
+
+  function closeLink() {
+    document.getElementById("linkModal").classList.remove("show");
+    currentPaymentLink = null;
+    clearCart();
+  }
+
+  // ---- RECEIPT ----
+  function showReceipt(subtotal, discountAmount, method) {
+    const now = new Date();
+    const orderNum = "ORD-" + Math.floor(1000 + Math.random() * 9000);
+    const total = Math.max(0, subtotal - discountAmount);
+
+    let itemsHtml = cart.map(i =>
+      `<div class="receipt-item"><span>${i.name} x${i.quantity}</span><span>$${(i.price * i.quantity).toFixed(2)}</span></div>`
+    ).join("");
+
+    let discountHtml = discountAmount > 0
+      ? `<div class="receipt-total-row discount"><span>Discount</span><span>-$${discountAmount.toFixed(2)}</span></div>`
+      : "";
+
+    document.getElementById("receiptBody").innerHTML = `
+      <div class="receipt-header">
+        <div class="order-num">${orderNum}</div>
+        <div class="receipt-time">${now.toLocaleDateString()} ${now.toLocaleTimeString()}</div>
+      </div>
+      <div class="receipt-items">${itemsHtml}</div>
+      <div class="receipt-totals">
+        <div class="receipt-total-row"><span>Subtotal</span><span>$${subtotal.toFixed(2)}</span></div>
+        ${discountHtml}
+        <div class="receipt-total-row grand"><span>Total</span><span>$${total.toFixed(2)}</span></div>
+      </div>
+      <div class="receipt-method">Payment: ${method === "terminal" ? "💳 Tap to Pay" : "🔗 Payment Link"}</div>
+    `;
+
+    document.getElementById("receiptModal").classList.add("show");
+  }
+
+  function closeReceipt() {
+    document.getElementById("receiptModal").classList.remove("show");
+  }
+
+  // ---- SETTINGS (MANAGER ONLY) ----
+  function showSettings(el) {
+    document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
+    el.classList.add("active");
+    document.getElementById("productGrid").style.display = "none";
+    const panel = document.getElementById("settingsPanel");
+    panel.style.display = "block";
+    renderSettings();
+  }
+
+  function renderSettings() {
+    const panel = document.getElementById("settingsPanel");
+    panel.innerHTML = `
+      <div class="settings-tabs">
+        <div class="settings-tab active" onclick="switchSettingsTab('products', this)">Products</div>
+        <div class="settings-tab" onclick="switchSettingsTab('discounts', this)">Discount Codes</div>
+      </div>
+      <div id="settingsProducts" class="settings-section active"></div>
+      <div id="settingsDiscounts" class="settings-section"></div>
+    `;
+    loadSettingsProducts();
+    loadSettingsDiscounts();
+  }
+
+  function switchSettingsTab(tab, el) {
+    document.querySelectorAll(".settings-tab").forEach(t => t.classList.remove("active"));
+    document.querySelectorAll(".settings-section").forEach(s => s.classList.remove("active"));
+    el.classList.add("active");
+    document.getElementById("settings" + tab.charAt(0).toUpperCase() + tab.slice(1)).classList.add("active");
+  }
+
+  async function loadSettingsProducts() {
+    const res = await fetch("/products");
+    const allProducts = await res.json();
+    products = allProducts;
+
+    const container = document.getElementById("settingsProducts");
+    const categories = ["tees", "balls", "drinks", "snacks"];
+
+    let html = `<div class="settings-card">
+      <h3>Add Product</h3>
+      <div class="form-row">
+        <select id="newProductCat">
+          ${categories.map(c => `<option value="${c}">${c.charAt(0).toUpperCase() + c.slice(1)}</option>`).join("")}
+        </select>
+        <input type="text" id="newProductName" placeholder="Product name" />
+        <input type="number" id="newProductPrice" placeholder="Price" min="0" step="0.01" style="width:80px;flex:none" />
+        <button class="btn-add" onclick="addProduct()">Add</button>
+      </div>
+    </div>`;
+
+    categories.forEach(cat => {
+      const items = allProducts[cat] || [];
+      html += `<div class="settings-card">
+        <h3>${cat.charAt(0).toUpperCase() + cat.slice(1)}</h3>`;
+      items.forEach(item => {
+        html += `<div class="item-row">
+          <div class="item-info"><b>${item.name}</b> — $${item.price.toFixed(2)}</div>
+          <div class="item-actions">
+            <button class="btn-icon danger" onclick="deleteProduct(${item.id})">Remove</button>
+          </div>
+        </div>`;
+      });
+      if (!items.length) html += `<div style="color:var(--muted);font-size:13px">No products</div>`;
+      html += `</div>`;
+    });
+
+    container.innerHTML = html;
+  }
+
+  async function addProduct() {
+    const category = document.getElementById("newProductCat").value;
+    const name = document.getElementById("newProductName").value.trim();
+    const price = parseFloat(document.getElementById("newProductPrice").value);
+
+    if (!name || isNaN(price) || price <= 0) { alert("Fill in all fields"); return; }
+
+    await fetch("/products", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ category, name, price })
+    });
+
+    document.getElementById("newProductName").value = "";
+    document.getElementById("newProductPrice").value = "";
+    loadSettingsProducts();
+  }
+
+  async function deleteProduct(id) {
+    if (!confirm("Remove this product?")) return;
+    await fetch(`/products/${id}`, { method: "DELETE" });
+    loadSettingsProducts();
+  }
+
+  async function loadSettingsDiscounts() {
+    const res = await fetch("/discount-codes");
+    const codes = await res.json();
+    const container = document.getElementById("settingsDiscounts");
+
+    let html = `<div class="settings-card">
+      <h3>Add Discount Code</h3>
+      <div class="form-row">
+        <input type="text" id="newCode" placeholder="Code (e.g. MEMBER10)" style="text-transform:uppercase" />
+        <select id="newCodeType">
+          <option value="percent">% Percent</option>
+          <option value="fixed">$ Fixed</option>
+        </select>
+        <input type="number" id="newCodeValue" placeholder="Value" min="0" step="0.01" style="width:80px;flex:none" />
+        <button class="btn-add" onclick="addCode()">Add</button>
+      </div>
+    </div>
+    <div class="settings-card"><h3>Active Codes</h3>`;
+
+    if (!codes.length) {
+      html += `<div style="color:var(--muted);font-size:13px">No codes yet</div>`;
+    } else {
+      codes.forEach(code => {
+        const activeClass = code.active ? "badge-active" : "badge-inactive";
+        const activeLabel = code.active ? "Active" : "Inactive";
+        const val = code.type === "percent" ? `${code.value}% off` : `$${code.value} off`;
+        html += `<div class="item-row">
+          <div class="item-info">
+            <span class="badge-code">${code.code}</span>
+            ${val}
+            <span class="badge-code ${activeClass}">${activeLabel}</span>
+          </div>
+          <div class="item-actions">
+            <button class="btn-icon" onclick="toggleCode(${code.id})">${code.active ? "Disable" : "Enable"}</button>
+          </div>
+        </div>`;
+      });
+    }
+
+    html += `</div>`;
+    container.innerHTML = html;
+  }
+
+  async function addCode() {
+    const code = document.getElementById("newCode").value.trim().toUpperCase();
+    const type = document.getElementById("newCodeType").value;
+    const value = parseFloat(document.getElementById("newCodeValue").value);
+
+    if (!code || isNaN(value) || value <= 0) { alert("Fill in all fields"); return; }
+
+    const res = await fetch("/discount-codes", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code, type, value })
+    });
+
+    if (res.status === 409) { alert("Code already exists"); return; }
+
+    document.getElementById("newCode").value = "";
+    document.getElementById("newCodeValue").value = "";
+    loadSettingsDiscounts();
+  }
+
+  async function toggleCode(id) {
+    await fetch(`/discount-codes/${id}/toggle`, { method: "PUT" });
+    loadSettingsDiscounts();
   }
 </script>
 </body>
