@@ -129,6 +129,41 @@ def create_payment_intent():
 
 
 # -------------------------
+# STRIPE PAYMENT LINK
+# -------------------------
+@app.route("/pay/link", methods=["POST"])
+@login_required
+def pay_link():
+    data = request.json
+    items = data.get("items", [])
+
+    if not items:
+        return jsonify({"error": "empty cart"}), 400
+
+    line_items = []
+    for item in items:
+        line_items.append({
+            "price_data": {
+                "currency": "usd",
+                "product_data": {
+                    "name": item["name"]
+                },
+                "unit_amount": int(item["price"] * 100)
+            },
+            "quantity": 1
+        })
+
+    checkout_session = stripe.checkout.Session.create(
+        mode="payment",
+        line_items=line_items,
+        success_url=os.getenv("SUCCESS_URL", "https://acwebsite.click/?success=true"),
+        cancel_url=os.getenv("CANCEL_URL", "https://acwebsite.click/?cancelled=true")
+    )
+
+    return jsonify({"url": checkout_session.url})
+
+
+# -------------------------
 # WEBHOOK
 # -------------------------
 @app.route("/webhook", methods=["POST"])
@@ -143,34 +178,44 @@ def webhook():
     except Exception:
         return jsonify({"error": "invalid webhook"}), 400
 
+    # Terminal payment
     if event["type"] == "payment_intent.succeeded":
         payment_intent = event["data"]["object"]
-
-        conn = sqlite3.connect("payments.db")
-        c = conn.cursor()
-
-        c.execute("""
-            INSERT OR IGNORE INTO orders (
-                stripe_session_id,
-                amount,
-                items,
-                status,
-                created_at
-            ) VALUES (?, ?, ?, ?, ?)
-        """, (
+        save_order(
             payment_intent["id"],
             payment_intent["amount"] / 100,
-            "terminal",
-            "paid",
-            datetime.utcnow().isoformat()
-        ))
+            "terminal"
+        )
 
-        conn.commit()
-        conn.close()
-
-        print("ORDER SAVED:", payment_intent["id"])
+    # Link payment
+    if event["type"] == "checkout.session.completed":
+        checkout_session = event["data"]["object"]
+        save_order(
+            checkout_session["id"],
+            checkout_session["amount_total"] / 100,
+            "link"
+        )
 
     return jsonify({"status": "ok"})
+
+
+def save_order(stripe_id, amount, method):
+    conn = sqlite3.connect("payments.db")
+    c = conn.cursor()
+    c.execute("""
+        INSERT OR IGNORE INTO orders (
+            stripe_session_id, amount, items, status, created_at
+        ) VALUES (?, ?, ?, ?, ?)
+    """, (
+        stripe_id,
+        amount,
+        method,
+        "paid",
+        datetime.utcnow().isoformat()
+    ))
+    conn.commit()
+    conn.close()
+    print(f"ORDER SAVED [{method}]:", stripe_id)
 
 
 # -------------------------
@@ -194,8 +239,8 @@ def admin_orders():
         <div style='border:1px solid #ddd;padding:10px;margin:10px'>
             <b>Order:</b> {r[0]}<br>
             <b>Amount:</b> ${r[2]}<br>
+            <b>Method:</b> {r[3]}<br>
             <b>Status:</b> {r[4]}<br>
-            <b>Items:</b> {r[3]}<br>
             <b>Date:</b> {r[5]}
         </div>
         """
