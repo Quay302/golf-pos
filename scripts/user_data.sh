@@ -8,7 +8,8 @@ yum update -y
 yum install -y python3 git
 amazon-linux-extras install nginx1 -y
 amazon-linux-extras install epel -y
-yum install -y certbot python3-certbot-nginx
+yum install -y certbot
+pip3 install certbot-nginx
 
 # Clone repo
 git clone https://github.com/Quay302/golf-pos.git /home/ec2-user/golf-pos
