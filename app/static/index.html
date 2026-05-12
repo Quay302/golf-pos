@@ -374,23 +374,23 @@ async function login() {
   function checkSuccessParam() {
     const params = new URLSearchParams(window.location.search);
     if (params.get("success") === "true") {
-      sessionStorage.setItem("paymentSuccess", "true");
-      window.history.replaceState({}, "", "/");
+        // Store in localStorage — persists across redirects unlike sessionStorage
+        localStorage.setItem("paymentSuccess", "true");
+        window.history.replaceState({}, "", "/");
     }
-  }
+}
 
-  // Show success banner if returning from Stripe payment
-  function handlePostLoginCheck() {
-    if (sessionStorage.getItem("paymentSuccess")) {
-      cart = [];
-      renderCart();
-      document.getElementById("successBanner").style.display = "block";
-      setTimeout(() => {
-        document.getElementById("successBanner").style.display = "none";
-      }, 4000);
-      sessionStorage.removeItem("paymentSuccess");
+function handlePostLoginCheck() {
+    if (localStorage.getItem("paymentSuccess")) {
+        cart = [];
+        renderCart();
+        document.getElementById("successBanner").style.display = "block";
+        setTimeout(() => {
+            document.getElementById("successBanner").style.display = "none";
+        }, 4000);
+        localStorage.removeItem("paymentSuccess");
     }
-  }
+}
 
   // Run immediately on page load to catch ?success=true before login
   checkSuccessParam();
