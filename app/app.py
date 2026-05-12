@@ -447,6 +447,33 @@ def save_order(stripe_id, amount, discount_amount, items_str, method, status="pa
 
 
 # -------------------------
+# CASH PAYMENT
+# -------------------------
+@app.route("/cash/complete", methods=["POST"])
+@login_required
+def cash_complete():
+    data = request.json
+    total = data.get("total", 0)
+    tendered = data.get("tendered", 0)
+    discount_amount = data.get("discount_amount", 0)
+
+    change = round(tendered - total, 2)
+
+    if change < 0:
+        return jsonify({"error": "insufficient amount"}), 400
+
+    save_order(
+        f"CASH-{datetime.utcnow().strftime('%Y%m%d%H%M%S')}",
+        total,
+        discount_amount,
+        "cash",
+        "cash"
+    )
+
+    return jsonify({"change": change})
+
+
+# -------------------------
 # WEBHOOK
 # -------------------------
 @app.route("/webhook", methods=["POST"])

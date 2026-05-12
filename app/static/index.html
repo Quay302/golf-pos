@@ -286,6 +286,26 @@
     #qrCanvas canvas, #qrCanvas img { border-radius: 8px; border: 1px solid var(--border); }
     .qr-amount { font-size: 22px; font-weight: 700; color: var(--green); margin-bottom: 4px; }
     .qr-hint { font-size: 12px; color: var(--muted); margin-bottom: 16px; }
+
+    /* CASH MODAL */
+    .cash-total { font-size: 28px; font-weight: 700; color: var(--green); text-align: center; margin-bottom: 4px; }
+    .cash-label { font-size: 12px; color: var(--muted); text-align: center; margin-bottom: 20px; }
+    .cash-input-row { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
+    .cash-input-row label { font-size: 13px; font-weight: 600; color: var(--text); white-space: nowrap; }
+    .cash-input-row input {
+      flex: 1; padding: 12px 14px; border: 2px solid var(--border); border-radius: 8px;
+      font-size: 18px; font-family: "DM Sans", sans-serif; font-weight: 600;
+      outline: none; text-align: right;
+    }
+    .cash-input-row input:focus { border-color: var(--green); }
+    .change-display {
+      background: #f0fdf4; border: 2px solid #86efac; border-radius: 10px;
+      padding: 16px; text-align: center; margin-bottom: 16px;
+    }
+    .change-display .change-label { font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+    .change-display .change-amount { font-size: 32px; font-weight: 700; color: #16a34a; }
+    .change-display.insufficient { background: #fef2f2; border-color: #fca5a5; }
+    .change-display.insufficient .change-amount { color: var(--red); }
   </style>
 </head>
 <body>
@@ -323,6 +343,30 @@
     <h2>Receipt</h2>
     <div class="receipt-body" id="receiptBody"></div>
     <button class="btn-receipt-close" onclick="closeReceipt()">Done</button>
+  </div>
+</div>
+
+<!-- CASH MODAL -->
+<div class="modal-overlay" id="cashModal">
+  <div class="modal-box">
+    <h2>Cash Payment</h2>
+    <div class="cash-total" id="cashTotal">$0.00</div>
+    <div class="cash-label">Total Due</div>
+    <div class="cash-input-row">
+      <label>Amount Tendered</label>
+      <input type="number" id="cashTendered" placeholder="0.00"
+             min="0" step="0.01" oninput="calcChange()" />
+    </div>
+    <div class="change-display" id="changeDisplay">
+      <div class="change-label">Change Due</div>
+      <div class="change-amount" id="changeAmount">—</div>
+    </div>
+    <div class="modal-buttons">
+      <button class="btn-copy" id="cashConfirmBtn" onclick="confirmCash()" disabled>
+        Complete Sale
+      </button>
+      <button class="btn-close-modal" onclick="closeCash()">Cancel</button>
+    </div>
   </div>
 </div>
 
@@ -385,6 +429,7 @@
       <div class="btn-group">
         <button class="btn-checkout" id="checkoutBtn" onclick="checkoutTerminal()">💳 Tap to Pay</button>
         <button class="btn-link" onclick="checkoutLink()">🔗 Send Payment Link</button>
+        <button class="btn-link" onclick="checkoutCash()" style="border-color:#16a34a;color:#16a34a;" onmouseover="this.style.background='#f0fdf4'" onmouseout="this.style.background='white'">💵 Cash Payment</button>
         <button class="btn-clear" onclick="clearCart()">Clear Cart</button>
       </div>
     </div>
@@ -760,7 +805,7 @@
         ${discountHtml}
         <div class="receipt-total-row grand"><span>Total</span><span>$${total.toFixed(2)}</span></div>
       </div>
-      <div class="receipt-method">Payment: ${method === "terminal" ? "💳 Tap to Pay" : "🔗 Payment Link"}</div>
+      <div class="receipt-method">Payment: ${method === "terminal" ? "💳 Tap to Pay" : method === "cash" ? "💵 Cash" : "🔗 Payment Link"}</div>
     `;
 
     document.getElementById("receiptModal").classList.add("show");
@@ -931,6 +976,97 @@
     await fetch(`/discount-codes/${id}/toggle`, { method: "PUT" });
     loadSettingsDiscounts();
   }
+
+  // ---- CASH PAYMENT ----
+  let cashTotal = 0;
+  let cashDiscountAmount = 0;
+
+  function checkoutCash() {
+    if (!cart.length) { alert("Cart is empty"); return; }
+
+    cashDiscountAmount = appliedDiscount ? appliedDiscount.discount : 0;
+    cashTotal = Math.max(0, cart.reduce((s, i) => s + i.price * i.quantity, 0) - cashDiscountAmount);
+
+    document.getElementById("cashTotal").textContent = "$" + cashTotal.toFixed(2);
+    document.getElementById("cashTendered").value = "";
+    document.getElementById("changeAmount").textContent = "—";
+    document.getElementById("changeDisplay").className = "change-display";
+    document.getElementById("cashConfirmBtn").disabled = true;
+    document.getElementById("cashModal").classList.add("show");
+    setTimeout(() => document.getElementById("cashTendered").focus(), 100);
+  }
+
+  function calcChange() {
+    const tendered = parseFloat(document.getElementById("cashTendered").value) || 0;
+    const change = tendered - cashTotal;
+    const display = document.getElementById("changeDisplay");
+    const amount = document.getElementById("changeAmount");
+    const btn = document.getElementById("cashConfirmBtn");
+
+    if (!document.getElementById("cashTendered").value) {
+      amount.textContent = "—";
+      display.className = "change-display";
+      btn.disabled = true;
+      return;
+    }
+
+    if (change < 0) {
+      amount.textContent = "-$" + Math.abs(change).toFixed(2);
+      display.className = "change-display insufficient";
+      btn.disabled = true;
+    } else {
+      amount.textContent = "$" + change.toFixed(2);
+      display.className = "change-display";
+      btn.disabled = false;
+    }
+  }
+
+  async function confirmCash() {
+    const tendered = parseFloat(document.getElementById("cashTendered").value) || 0;
+    const btn = document.getElementById("cashConfirmBtn");
+    btn.disabled = true;
+    btn.textContent = "Processing...";
+
+    try {
+      const res = await fetch("/cash/complete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          total: cashTotal,
+          tendered: tendered,
+          discount_amount: cashDiscountAmount
+        })
+      });
+
+      const result = await res.json();
+
+      if (result.error) {
+        alert(result.error);
+        btn.disabled = false;
+        btn.textContent = "Complete Sale";
+        return;
+      }
+
+      // Show receipt then close
+      document.getElementById("cashModal").classList.remove("show");
+      showReceipt(
+        cart.reduce((s, i) => s + i.price * i.quantity, 0),
+        cashDiscountAmount,
+        "cash"
+      );
+      clearCart();
+
+    } catch (err) {
+      alert("Could not connect to server");
+      btn.disabled = false;
+      btn.textContent = "Complete Sale";
+    }
+  }
+
+  function closeCash() {
+    document.getElementById("cashModal").classList.remove("show");
+  }
+
 </script>
 </body>
 </html>
