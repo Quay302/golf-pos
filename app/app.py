@@ -1,3 +1,11 @@
+# =============================================================
+# Golf POS — Proprietary Software
+# Copyright (c) 2025 Ashton Collins. All rights reserved.
+#
+# Unauthorized copying, modification, distribution or use
+# of this software, in whole or in part, is strictly
+# prohibited without prior written permission.
+# =============================================================
 import os
 import sqlite3
 import stripe
