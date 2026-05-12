@@ -14,6 +14,8 @@ yum install -y certbot
 # Clone repo
 git clone https://github.com/Quay302/golf-pos.git /home/ec2-user/golf-pos
 
+chown -R ec2-user:ec2-user /home/ec2-user/golf-pos
+
 # Install dependencies
 pip3 install -r /home/ec2-user/golf-pos/app/requirements.txt
 pip3 install gunicorn
