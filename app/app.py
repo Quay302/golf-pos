@@ -1,7 +1,7 @@
 import os
 import stripe
 import sqlite3
-from datetime import datetime
+from datetime import datetime, timedelta
 from flask import Flask, request, jsonify, send_from_directory, session
 from functools import wraps
 from flask_cors import CORS
@@ -23,7 +23,9 @@ endpoint_secret = os.getenv("STRIPE_WEBHOOK_SECRET")
 app.config.update(
     SESSION_COOKIE_SECURE=True,
     SESSION_COOKIE_HTTPONLY=True,
-    SESSION_COOKIE_SAMESITE='Lax'
+    SESSION_COOKIE_SAMESITE='Lax',
+    PERMANENT_SESSION_LIFETIME=timedelta(hours=8),
+    SESSION_COOKIE_DOMAIN=None
 )
 
 
@@ -75,6 +77,7 @@ def login():
     password = data.get("password", "")
 
     if STAFF_USERS.get(username) == password and password != "":
+        session.permanent = True
         session["user"] = username
         return jsonify({"username": username})
 
