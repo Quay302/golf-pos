@@ -20,10 +20,10 @@ jobs:
           key: ${{ secrets.EC2_KEY }}
           script: |
             git config --global --add safe.directory /home/ec2-user/golf-pos
-            cd golf-pos
+            cd /home/ec2-user/golf-pos
             git fetch origin main
             git reset --hard origin/main
-            pip3 install -r app/requirements.txt
+            sudo pip3 install -r app/requirements.txt
             sudo systemctl restart flaskapp
             sleep 3
             sudo systemctl status flaskapp --no-pager

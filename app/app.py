@@ -567,6 +567,7 @@ def admin_orders():
         .refunded { background: #fee2e2; color: #991b1b; }
         .terminal { background: #dbeafe; color: #1e40af; }
         .link { background: #fef3c7; color: #92400e; }
+        .cash { background: #d1fae5; color: #065f46; }
         table { width: 100%%; border-collapse: collapse; background: white;
                 border-radius: 8px; overflow: hidden; }
         th { background: #0b3d2e; color: white; padding: 10px; text-align: left; }
@@ -592,7 +593,7 @@ def admin_orders():
     html += "<h2>All Orders</h2>"
     for r in rows:
         status_class = r[7] if r[7] in ("paid", "refunded") else "paid"
-        method_class = r[6] if r[6] in ("terminal", "link") else "terminal"
+        method_class = r[6] if r[6] in ("terminal", "link", "cash") else "terminal"
         discount_line = f"<br><b>Discount:</b> -${r[4]:.2f}" if r[4] and r[4] > 0 else ""
         html += f"""
         <div class="order">

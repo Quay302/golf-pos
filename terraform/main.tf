@@ -2,10 +2,32 @@ provider "aws" {
   region = var.aws_region
 }
 
+# ── Latest Amazon Linux 2023 AMI (auto-resolves, never goes stale) ────────────
+data "aws_ami" "al2023" {
+  most_recent = true
+  owners      = ["amazon"]
+
+  filter {
+    name   = "name"
+    values = ["al2023-ami-*-x86_64"]
+  }
+
+  filter {
+    name   = "architecture"
+    values = ["x86_64"]
+  }
+
+  filter {
+    name   = "virtualization-type"
+    values = ["hvm"]
+  }
+}
+
 resource "aws_security_group" "flask_sg" {
   name = "flask-sg"
 
-  # SSH — open for GitHub Actions deploys
+  # SSH — open to all IPs; GitHub Actions needs this (IPs change constantly).
+  # Security comes from the private key stored in GitHub Secrets, not IP restriction.
   ingress {
     from_port   = 22
     to_port     = 22
@@ -38,13 +60,19 @@ resource "aws_security_group" "flask_sg" {
 }
 
 resource "aws_instance" "flask_server" {
-  ami                    = var.ami_id
+  ami                    = data.aws_ami.al2023.id
   instance_type          = var.instance_type
   key_name               = var.key_name
   vpc_security_group_ids = [aws_security_group.flask_sg.id]
 
-  # Fixed path — main.tf is inside terraform/, scripts is one level up
+  # main.tf is inside terraform/, scripts is one level up
   user_data = file("${path.module}/../scripts/user_data.sh")
+
+  root_block_device {
+    volume_size           = 20
+    volume_type           = "gp3"
+    delete_on_termination = true
+  }
 
   tags = {
     Name = "GolfPOS"
@@ -57,25 +85,26 @@ resource "aws_eip" "flask_eip" {
   domain   = "vpc"
 }
 
-# Route53 - point your domain to the Elastic IP
+# Route53 — point domain to Elastic IP
 data "aws_route53_zone" "main" {
-  name = "acwebsite.click"
+  name = var.domain_name
 }
 
 resource "aws_route53_record" "flask_a" {
-  zone_id = data.aws_route53_zone.main.zone_id
-  name    = "acwebsite.click"
-  type    = "A"
-  ttl     = 300
-  records = [aws_eip.flask_eip.public_ip]
+  zone_id         = data.aws_route53_zone.main.zone_id
+  name            = var.domain_name
+  type            = "A"
+  ttl             = 300
+  records         = [aws_eip.flask_eip.public_ip]
   allow_overwrite = true
 }
 
 # www redirect
 resource "aws_route53_record" "flask_www" {
-  zone_id = data.aws_route53_zone.main.zone_id
-  name    = "www.acwebsite.click"
-  type    = "A"
-  ttl     = 300
-  records = [aws_eip.flask_eip.public_ip]
+  zone_id         = data.aws_route53_zone.main.zone_id
+  name            = "www.${var.domain_name}"
+  type            = "A"
+  ttl             = 300
+  records         = [aws_eip.flask_eip.public_ip]
+  allow_overwrite = true
 }
