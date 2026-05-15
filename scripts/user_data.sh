@@ -13,10 +13,12 @@ dnf install -y python3 python3-pip git nginx certbot python3-certbot-nginx nano
 git clone https://github.com/Quay302/golf-pos.git /home/ec2-user/golf-pos
 chown -R ec2-user:ec2-user /home/ec2-user/golf-pos
 
-# ── Python dependencies ───────────────────────────────────────────────────────
-# Upgrade cryptography and pyOpenSSL first to avoid sendgrid import conflicts
-pip3 install --upgrade cryptography pyOpenSSL
-pip3 install -r /home/ec2-user/golf-pos/app/requirements.txt
+# ── Virtual environment — isolates app from system Python packages ────────────
+python3 -m venv /home/ec2-user/venv
+chown -R ec2-user:ec2-user /home/ec2-user/venv
+
+/home/ec2-user/venv/bin/pip install --upgrade pip
+/home/ec2-user/venv/bin/pip install -r /home/ec2-user/golf-pos/app/requirements.txt
 
 # ── Environment variables ─────────────────────────────────────────────────────
 cat > /home/ec2-user/golf-pos/app/.env << 'EOF'
@@ -50,7 +52,7 @@ After=network.target
 User=ec2-user
 WorkingDirectory=/home/ec2-user/golf-pos/app
 EnvironmentFile=/home/ec2-user/golf-pos/app/.env
-ExecStart=/usr/local/bin/gunicorn --bind 127.0.0.1:5000 --workers 1 --threads 4 app:app
+ExecStart=/home/ec2-user/venv/bin/gunicorn --bind 127.0.0.1:5000 --workers 1 --threads 4 app:app
 Restart=always
 RestartSec=5
 

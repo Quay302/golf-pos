@@ -23,7 +23,7 @@ jobs:
             cd /home/ec2-user/golf-pos
             git fetch origin main
             git reset --hard origin/main
-            sudo pip3 install -r app/requirements.txt
+            /home/ec2-user/venv/bin/pip install -r app/requirements.txt
             sudo systemctl restart flaskapp
             sleep 3
             sudo systemctl status flaskapp --no-pager
