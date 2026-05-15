@@ -745,10 +745,14 @@ def edit_tee_time(booking_id):
 @login_required
 def issue_raincheck(booking_id):
     data = request.json or {}
-    amount = float(data.get("amount", 0))
+    amount = float(data.get("amount", 0))      # per-player amount
+    num_codes = int(data.get("num_codes", 1))  # how many individual codes to generate
 
     if amount <= 0:
         return jsonify({"error": "Rain check amount must be greater than $0"}), 400
+
+    if not (1 <= num_codes <= 4):
+        return jsonify({"error": "num_codes must be between 1 and 4"}), 400
 
     conn = sqlite3.connect("payments.db")
     c = conn.cursor()
@@ -759,22 +763,25 @@ def issue_raincheck(booking_id):
         conn.close()
         return jsonify({"error": "Booking not found or not yet checked in"}), 404
 
-    # Generate unique rain check code
-    while True:
-        code = "RAIN-" + "".join(random.choices(string.ascii_uppercase + string.digits, k=6))
-        c.execute("SELECT id FROM discount_codes WHERE code=?", (code,))
-        if not c.fetchone():
-            break
+    # Generate num_codes unique codes — each worth amount (per player)
+    codes = []
+    for _ in range(num_codes):
+        while True:
+            code = "RAIN-" + "".join(random.choices(string.ascii_uppercase + string.digits, k=6))
+            c.execute("SELECT id FROM discount_codes WHERE code=?", (code,))
+            if not c.fetchone():
+                break
+        c.execute(
+            "INSERT INTO discount_codes (code, type, value, active) VALUES (?, 'fixed', ?, 1)",
+            (code, round(amount, 2))
+        )
+        codes.append(code)
 
-    c.execute(
-        "INSERT INTO discount_codes (code, type, value, active) VALUES (?, 'fixed', ?, 1)",
-        (code, round(amount, 2))
-    )
     c.execute("UPDATE tee_sheet SET status='rain_check' WHERE id=?", (booking_id,))
     conn.commit()
     conn.close()
 
-    return jsonify({"code": code, "amount": amount})
+    return jsonify({"codes": codes, "amount": amount, "num_codes": num_codes})
 
 
 @app.route("/teesheet/<int:booking_id>/cancel", methods=["PUT"])

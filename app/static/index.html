@@ -1528,23 +1528,34 @@
     const btns = document.getElementById("slotActionButtons");
 
     if (slot.status === "checked_in") {
-      // Rain check flow
+      // Rain check flow — per-player amount, choose how many codes
       const billed = slot.players_billed || slot.num_players;
-      const suggested = getTeePriceFromProducts(slot.holes, slot.cart) * billed;
+      const perPlayer = getTeePriceFromProducts(slot.holes, slot.cart);
       btns.innerHTML = `
         <hr class="slot-divider">
         <span class="slot-section-label">☂ Issue Rain Check</span>
         <div class="rain-input-row">
-          <input type="number" id="rainAmount" placeholder="Amount ($)"
-                 value="${suggested > 0 ? suggested.toFixed(2) : ''}"
-                 min="0.01" step="0.01" />
-          <button class="btn-add" onclick="issueRainCheck()">Generate Code</button>
+          <input type="number" id="rainAmount" placeholder="Per-player amount ($)"
+                 value="${perPlayer > 0 ? perPlayer.toFixed(2) : ''}"
+                 min="0.01" step="0.01" style="flex:2;" />
         </div>
-        <div id="rainCodeDisplay" style="display:none;"></div>
-        <p style="font-size:12px;color:var(--muted);margin-top:4px;">
-          Creates a one-time discount code for the customer to use on a future visit.
+        <span class="slot-section-label" style="margin-top:4px;">Number of Codes</span>
+        <div class="toggle-group" style="margin-bottom:12px;" id="rainCodesToggle">
+          ${[1,2,3,4].filter(n => n <= billed).map(n =>
+            `<button class="toggle-btn${n === billed ? ' active' : ''}"
+               onclick="selectRainCodes(${n})" id="rainCodeBtn${n}">${n}</button>`
+          ).join('')}
+        </div>
+        <p style="font-size:12px;color:var(--muted);margin-bottom:10px;">
+          Each player gets their own code worth the per-player amount.
         </p>
+        <button class="btn-add" style="width:100%;padding:11px;" onclick="issueRainCheck()">
+          Generate Codes
+        </button>
+        <div id="rainCodeDisplay" style="display:none;margin-top:12px;"></div>
       `;
+      // Set initial selection
+      rainNumCodes = billed;
     } else if (slot.status === "partial") {
       const nextNum = (slot.players_billed || 0) + 1;
       btns.innerHTML = `
@@ -1625,35 +1636,58 @@
     } catch { alert("Could not connect to server"); }
   }
 
+  let rainNumCodes = 1;
+
+  function selectRainCodes(n) {
+    rainNumCodes = n;
+    document.querySelectorAll("[id^='rainCodeBtn']").forEach(btn => btn.classList.remove("active"));
+    const btn = document.getElementById(`rainCodeBtn${n}`);
+    if (btn) btn.classList.add("active");
+  }
+
   async function issueRainCheck() {
     if (!activeSlotId) return;
     const amount = parseFloat(document.getElementById("rainAmount").value);
-    if (!amount || amount <= 0) { alert("Enter a valid amount"); return; }
+    if (!amount || amount <= 0) { alert("Enter a valid per-player amount"); return; }
 
     try {
       const res = await fetch(`/teesheet/${activeSlotId}/raincheck`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ amount })
+        body: JSON.stringify({ amount, num_codes: rainNumCodes })
       });
       const data = await res.json();
       if (data.error) { alert(data.error); return; }
 
-      document.getElementById("rainCodeDisplay").style.display = "block";
-      document.getElementById("rainCodeDisplay").innerHTML = `
-        <div class="rain-code-display">
-          <div class="rain-code-label">Rain Check Code</div>
-          <div class="rain-code-value">${data.code}</div>
-          <div class="rain-code-hint">Worth $${data.amount.toFixed(2)} · Give this code to the customer</div>
+      const display = document.getElementById("rainCodeDisplay");
+      display.style.display = "block";
+
+      const codesHtml = data.codes.map((code, i) => `
+        <div class="rain-code-display" style="margin-bottom:8px;">
+          <div class="rain-code-label">Player ${i + 1} of ${data.num_codes}</div>
+          <div class="rain-code-value">${code}</div>
+          <div class="rain-code-hint">Worth $${data.amount.toFixed(2)}</div>
         </div>
-        <button class="btn-add" style="width:100%;margin-bottom:8px;"
-          onclick="navigator.clipboard.writeText('${data.code}').then(()=>alert('Copied!'))">
+        <button class="btn-icon" style="width:100%;margin-bottom:8px;padding:8px;"
+          onclick="navigator.clipboard.writeText('${code}').then(()=>this.textContent='✓ Copied').catch(()=>{})">
           Copy Code
         </button>
+      `).join("");
+
+      const allCodes = data.codes.join(", ");
+      display.innerHTML = `
+        ${codesHtml}
+        ${data.num_codes > 1 ? `
+          <button class="btn-icon" style="width:100%;padding:8px;margin-top:4px;"
+            onclick="navigator.clipboard.writeText('${allCodes}').then(()=>this.textContent='✓ All Copied').catch(()=>{})">
+            Copy All Codes
+          </button>
+        ` : ""}
       `;
 
       loadTeeSheet();
     } catch { alert("Could not connect to server"); }
+  }
   }
 
   async function checkInSlot(mode) {
