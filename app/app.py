@@ -9,6 +9,8 @@
 import os
 import sqlite3
 import stripe
+import random
+import string
 from datetime import datetime, timedelta
 from flask import Flask, request, jsonify, send_from_directory, session
 from functools import wraps
@@ -692,6 +694,87 @@ def checkin_tee_time(booking_id):
             "players_billed": new_billed,
             "players_total": num_players
         })
+
+
+@app.route("/teesheet/<int:booking_id>/edit", methods=["PUT"])
+@login_required
+def edit_tee_time(booking_id):
+    data = request.json or {}
+    num_players = int(data.get("num_players", 1))
+
+    if not (1 <= num_players <= 4):
+        return jsonify({"error": "num_players must be between 1 and 4"}), 400
+
+    conn = sqlite3.connect("payments.db")
+    c = conn.cursor()
+
+    c.execute(
+        "SELECT num_players, players_billed, status FROM tee_sheet WHERE id=? AND status IN ('booked', 'partial')",
+        (booking_id,)
+    )
+    row = c.fetchone()
+    if not row:
+        conn.close()
+        return jsonify({"error": "Booking not found or already checked in"}), 404
+
+    _current, players_billed, _status = row
+    players_billed = players_billed or 0
+
+    if num_players < players_billed:
+        conn.close()
+        return jsonify({"error": f"Cannot reduce to {num_players} — {players_billed} player(s) already billed"}), 400
+
+    # If new count matches already-billed count, close out as fully checked in
+    if num_players == players_billed and players_billed > 0:
+        new_status = "checked_in"
+    elif players_billed > 0:
+        new_status = "partial"
+    else:
+        new_status = "booked"
+
+    c.execute(
+        "UPDATE tee_sheet SET num_players=?, status=? WHERE id=?",
+        (num_players, new_status, booking_id)
+    )
+    conn.commit()
+    conn.close()
+    return jsonify({"status": new_status, "num_players": num_players})
+
+
+@app.route("/teesheet/<int:booking_id>/raincheck", methods=["POST"])
+@login_required
+def issue_raincheck(booking_id):
+    data = request.json or {}
+    amount = float(data.get("amount", 0))
+
+    if amount <= 0:
+        return jsonify({"error": "Rain check amount must be greater than $0"}), 400
+
+    conn = sqlite3.connect("payments.db")
+    c = conn.cursor()
+
+    # Only issue rain checks on checked-in bookings
+    c.execute("SELECT id FROM tee_sheet WHERE id=? AND status='checked_in'", (booking_id,))
+    if not c.fetchone():
+        conn.close()
+        return jsonify({"error": "Booking not found or not yet checked in"}), 404
+
+    # Generate unique rain check code
+    while True:
+        code = "RAIN-" + "".join(random.choices(string.ascii_uppercase + string.digits, k=6))
+        c.execute("SELECT id FROM discount_codes WHERE code=?", (code,))
+        if not c.fetchone():
+            break
+
+    c.execute(
+        "INSERT INTO discount_codes (code, type, value, active) VALUES (?, 'fixed', ?, 1)",
+        (code, round(amount, 2))
+    )
+    c.execute("UPDATE tee_sheet SET status='rain_check' WHERE id=?", (booking_id,))
+    conn.commit()
+    conn.close()
+
+    return jsonify({"code": code, "amount": amount})
 
 
 @app.route("/teesheet/<int:booking_id>/cancel", methods=["PUT"])

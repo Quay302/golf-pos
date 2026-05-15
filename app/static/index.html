@@ -173,7 +173,9 @@
     .ts-slot.booked:hover { border-color: var(--green); box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
     .ts-slot.partial { cursor: pointer; border-color: #c4b5fd; background: #faf5ff; }
     .ts-slot.partial:hover { border-color: #7c3aed; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
-    .ts-slot.checked_in { border-color: #93c5fd; background: #eff6ff; cursor: default; }
+    .ts-slot.checked_in { border-color: #93c5fd; background: #eff6ff; cursor: pointer; }
+    .ts-slot.checked_in:hover { border-color: #3b82f6; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+    .ts-slot.rain_check { border-color: #fcd34d; background: #fffbeb; cursor: default; opacity: 0.7; }
     .ts-slot.cancelled { opacity: 0.4; cursor: default; }
     .ts-time {
       font-size: 13px; font-weight: 700; color: var(--green); min-width: 72px;
@@ -189,6 +191,7 @@
     .ts-badge.booked { background: #fef3c7; color: #92400e; }
     .ts-badge.partial { background: #ede9fe; color: #6d28d9; }
     .ts-badge.checked_in { background: #dbeafe; color: #1e40af; }
+    .ts-badge.rain_check { background: #fef3c7; color: #92400e; }
     .ts-badge.cancelled { background: #f3f4f6; color: #6b7280; }
 
     /* ---- BOOKING & SLOT ACTION MODALS ---- */
@@ -242,6 +245,26 @@
       font-size: 13px; font-family: 'DM Sans', sans-serif; transition: 0.15s;
     }
     .btn-close-slot:hover { background: #f9fafb; }
+    .slot-divider { border: none; border-top: 1px solid var(--border); margin: 16px 0; }
+    .slot-section-label {
+      font-size: 11px; font-weight: 600; color: var(--muted);
+      text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 10px; display: block;
+    }
+    .rain-input-row { display: flex; gap: 8px; align-items: center; margin-bottom: 10px; }
+    .rain-input-row input {
+      flex: 1; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px;
+      font-size: 16px; font-family: 'DM Sans', sans-serif; font-weight: 600; outline: none;
+    }
+    .rain-input-row input:focus { border-color: var(--green); }
+    .rain-code-display {
+      background: #f0fdf4; border: 2px solid #86efac; border-radius: 10px;
+      padding: 14px; text-align: center; margin-bottom: 12px;
+    }
+    .rain-code-label { font-size: 11px; color: var(--muted); margin-bottom: 4px; }
+    .rain-code-value { font-size: 22px; font-weight: 700; color: var(--green); font-family: monospace; letter-spacing: 2px; }
+    .rain-code-hint { font-size: 12px; color: var(--muted); margin-top: 4px; }
+    .edit-players-row { display: flex; align-items: center; gap: 16px; margin-bottom: 12px; }
+    .edit-players-label { font-size: 13px; color: var(--text); flex: 1; }
 
     /* ---- CART ---- */
     .cart {
@@ -1367,6 +1390,7 @@
       booked: "Booked",
       partial: "Partial",
       checked_in: "Checked In",
+      rain_check: "☂ Rain Check",
       cancelled: "Cancelled"
     };
 
@@ -1375,7 +1399,7 @@
         ? `${slot.players_billed || 0}/${slot.num_players} Billed`
         : (statusLabels[slot.status] || slot.status);
 
-      const clickable = slot.status === "available" || slot.status === "booked" || slot.status === "partial";
+      const clickable = ["available", "booked", "partial", "checked_in"].includes(slot.status);
 
       let content = "";
       if (slot.status === "available") {
@@ -1404,7 +1428,7 @@
     const slot = tsSlots[index];
     if (slot.status === "available") {
       openBookingModal(slot.time, slot.display_time);
-    } else if (slot.status === "booked" || slot.status === "partial") {
+    } else if (["booked", "partial", "checked_in"].includes(slot.status)) {
       openSlotAction(slot);
     }
   }
@@ -1474,8 +1498,21 @@
   }
 
   // ---- SLOT ACTION MODAL ----
+  let activeSlot = null;
+  let editedPlayers = 1;
+
+  function getTeePriceFromProducts(holes, cart) {
+    const name = `${holes} Holes ${cart ? 'Cart' : 'Walking'}`;
+    const tees = products['tees'] || [];
+    const match = tees.find(p => p.name === name);
+    return match ? match.price : 0;
+  }
+
   function openSlotAction(slot) {
     activeSlotId = slot.id;
+    activeSlot = slot;
+    editedPlayers = slot.num_players;
+
     const holesLabel = slot.holes === 9 ? "9 Holes" : "18 Holes";
     const cartLabel = slot.cart ? "Cart" : "Walking";
     const playersLabel = slot.num_players > 1 ? `${slot.num_players} players` : "1 player";
@@ -1490,17 +1527,45 @@
 
     const btns = document.getElementById("slotActionButtons");
 
-    if (slot.status === "partial") {
-      // Mid-split: only show next player option
+    if (slot.status === "checked_in") {
+      // Rain check flow
+      const billed = slot.players_billed || slot.num_players;
+      const suggested = getTeePriceFromProducts(slot.holes, slot.cart) * billed;
+      btns.innerHTML = `
+        <hr class="slot-divider">
+        <span class="slot-section-label">☂ Issue Rain Check</span>
+        <div class="rain-input-row">
+          <input type="number" id="rainAmount" placeholder="Amount ($)"
+                 value="${suggested > 0 ? suggested.toFixed(2) : ''}"
+                 min="0.01" step="0.01" />
+          <button class="btn-add" onclick="issueRainCheck()">Generate Code</button>
+        </div>
+        <div id="rainCodeDisplay" style="display:none;"></div>
+        <p style="font-size:12px;color:var(--muted);margin-top:4px;">
+          Creates a one-time discount code for the customer to use on a future visit.
+        </p>
+      `;
+    } else if (slot.status === "partial") {
       const nextNum = (slot.players_billed || 0) + 1;
       btns.innerHTML = `
         <button class="btn-checkin" onclick="checkInSlot('individual')">
           ✓ Bill Player ${nextNum} of ${slot.num_players}
         </button>
+        <hr class="slot-divider">
+        <span class="slot-section-label">Adjust Remaining Players</span>
+        <div class="edit-players-row">
+          <span class="edit-players-label">Players in group</span>
+          <button class="qty-btn" onclick="changeEditPlayers(-1)">−</button>
+          <span class="players-count" id="editPlayersCount">${slot.num_players}</span>
+          <button class="qty-btn" onclick="changeEditPlayers(1)">+</button>
+          <button class="btn-add" onclick="saveEditPlayers()">Save</button>
+        </div>
+        <p style="font-size:12px;color:var(--muted);margin-bottom:12px;">
+          Min: ${slot.players_billed} (already billed) · Max: 4
+        </p>
         <button class="btn-cancel-booking" onclick="cancelSlot()">Cancel Remaining</button>
       `;
     } else if (slot.num_players > 1) {
-      // Multi-player booked: offer together or individual
       btns.innerHTML = `
         <button class="btn-checkin" onclick="checkInSlot('together')">
           ✓ Check In — Bill Together (${slot.num_players} players)
@@ -1509,10 +1574,18 @@
           style="background:var(--gold);margin-top:8px;">
           💳 Check In — Bill Individually (Player 1 of ${slot.num_players})
         </button>
+        <hr class="slot-divider">
+        <span class="slot-section-label">Adjust Player Count</span>
+        <div class="edit-players-row">
+          <span class="edit-players-label">Players showing up</span>
+          <button class="qty-btn" onclick="changeEditPlayers(-1)">−</button>
+          <span class="players-count" id="editPlayersCount">${slot.num_players}</span>
+          <button class="qty-btn" onclick="changeEditPlayers(1)">+</button>
+          <button class="btn-add" onclick="saveEditPlayers()">Save</button>
+        </div>
         <button class="btn-cancel-booking" onclick="cancelSlot()">Cancel Booking</button>
       `;
     } else {
-      // Single player: simple check in
       btns.innerHTML = `
         <button class="btn-checkin" onclick="checkInSlot('together')">
           ✓ Check In &amp; Add to Cart
@@ -1527,6 +1600,60 @@
   function closeSlotAction() {
     document.getElementById("slotActionModal").classList.remove("show");
     activeSlotId = null;
+    activeSlot = null;
+  }
+
+  function changeEditPlayers(delta) {
+    const minPlayers = (activeSlot && activeSlot.players_billed) || 1;
+    editedPlayers = Math.max(minPlayers, Math.min(4, editedPlayers + delta));
+    const el = document.getElementById("editPlayersCount");
+    if (el) el.textContent = editedPlayers;
+  }
+
+  async function saveEditPlayers() {
+    if (!activeSlotId) return;
+    try {
+      const res = await fetch(`/teesheet/${activeSlotId}/edit`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ num_players: editedPlayers })
+      });
+      const data = await res.json();
+      if (data.error) { alert(data.error); return; }
+      closeSlotAction();
+      loadTeeSheet();
+    } catch { alert("Could not connect to server"); }
+  }
+
+  async function issueRainCheck() {
+    if (!activeSlotId) return;
+    const amount = parseFloat(document.getElementById("rainAmount").value);
+    if (!amount || amount <= 0) { alert("Enter a valid amount"); return; }
+
+    try {
+      const res = await fetch(`/teesheet/${activeSlotId}/raincheck`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ amount })
+      });
+      const data = await res.json();
+      if (data.error) { alert(data.error); return; }
+
+      document.getElementById("rainCodeDisplay").style.display = "block";
+      document.getElementById("rainCodeDisplay").innerHTML = `
+        <div class="rain-code-display">
+          <div class="rain-code-label">Rain Check Code</div>
+          <div class="rain-code-value">${data.code}</div>
+          <div class="rain-code-hint">Worth $${data.amount.toFixed(2)} · Give this code to the customer</div>
+        </div>
+        <button class="btn-add" style="width:100%;margin-bottom:8px;"
+          onclick="navigator.clipboard.writeText('${data.code}').then(()=>alert('Copied!'))">
+          Copy Code
+        </button>
+      `;
+
+      loadTeeSheet();
+    } catch { alert("Could not connect to server"); }
   }
 
   async function checkInSlot(mode) {
