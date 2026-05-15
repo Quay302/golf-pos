@@ -20,7 +20,7 @@ from dotenv import load_dotenv
 
 try:
     from sendgrid import SendGridAPIClient
-    from sendgrid.mail import Mail
+    from sendgrid.helpers.mail import Mail
     SENDGRID_AVAILABLE = True
 except ImportError:
     SENDGRID_AVAILABLE = False
