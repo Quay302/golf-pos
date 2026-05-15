@@ -655,7 +655,7 @@ def webhook():
     if etype == "payment_intent.succeeded":
         pi = event["data"]["object"]
         # Use attribute access for new Stripe SDK compatibility
-        meta = dict(pi.metadata) if pi.metadata else {}
+        meta = {k: v for k, v in pi.metadata.items()} if pi.metadata else {}
         customer_email = meta.get("customer_email", "")
         items_str = meta.get("items", "terminal")
         discount_amount = float(meta.get("discount_amount", 0) or 0)
@@ -671,7 +671,7 @@ def webhook():
 
     elif etype == "checkout.session.completed":
         cs = event["data"]["object"]
-        meta = dict(cs.metadata) if cs.metadata else {}
+        meta = {k: v for k, v in cs.metadata.items()} if cs.metadata else {}
         # Stripe captures customer email on their checkout page
         customer_details = cs.customer_details
         customer_email = customer_details.email if customer_details else ""
