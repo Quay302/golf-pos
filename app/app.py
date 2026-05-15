@@ -355,13 +355,12 @@ def send_confirmation_email(order_number, amount, discount_amount, items_str, me
     if not customer_email or not SENDGRID_AVAILABLE:
         return
     api_key = os.getenv("SENDGRID_API_KEY")
-    from_email = os.getenv("FROM_EMAIL", "receipts@collinsconsulting.golf")
+    from_email = os.getenv("FROM_EMAIL", "receipts@acwebsite.click")
     course_name = os.getenv("COURSE_NAME", "Country Club")
     if not api_key:
         return
 
     try:
-        # Build itemised rows
         try:
             items = json.loads(items_str)
             rows_html = ""
@@ -398,28 +397,22 @@ def send_confirmation_email(order_number, amount, discount_amount, items_str, me
 <html>
 <body style="margin:0;padding:0;background:#f4f6f8;font-family:Arial,sans-serif;">
   <div style="max-width:480px;margin:32px auto;border-radius:12px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.10);">
-
     <div style="background:#0b3d2e;padding:28px 24px;text-align:center;">
       <h1 style="color:white;margin:0;font-size:22px;font-weight:700;">{course_name}</h1>
       <p style="color:rgba(255,255,255,0.75);margin:6px 0 0;font-size:13px;">Payment Confirmation</p>
     </div>
-
     <div style="background:white;padding:28px 24px;">
       <p style="margin:0 0 4px;color:#6b7280;font-size:11px;text-transform:uppercase;letter-spacing:0.8px;">Order Number</p>
       <p style="margin:0 0 24px;color:#0b3d2e;font-size:22px;font-weight:700;">#{order_number}</p>
-
       <table style="width:100%;border-collapse:collapse;margin-bottom:20px;">
         <thead>
           <tr style="border-bottom:2px solid #f0f0f0;">
-            <th style="text-align:left;padding:8px 0;font-size:11px;color:#6b7280;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;">Item</th>
-            <th style="text-align:center;padding:8px 0;font-size:11px;color:#6b7280;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;">Qty</th>
-            <th style="text-align:right;padding:8px 0;font-size:11px;color:#6b7280;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;">Amount</th>
+            <th style="text-align:left;padding:8px 0;font-size:11px;color:#6b7280;font-weight:600;text-transform:uppercase;">Item</th>
+            <th style="text-align:center;padding:8px 0;font-size:11px;color:#6b7280;font-weight:600;text-transform:uppercase;">Qty</th>
+            <th style="text-align:right;padding:8px 0;font-size:11px;color:#6b7280;font-weight:600;text-transform:uppercase;">Amount</th>
           </tr>
         </thead>
-        <tbody>
-          {rows_html}
-          {discount_row}
-        </tbody>
+        <tbody>{rows_html}{discount_row}</tbody>
         <tfoot>
           <tr style="border-top:2px solid #f0f0f0;">
             <td colspan="2" style="padding:14px 0 0;font-size:16px;font-weight:700;color:#0b3d2e;">Total Paid</td>
@@ -427,7 +420,6 @@ def send_confirmation_email(order_number, amount, discount_amount, items_str, me
           </tr>
         </tfoot>
       </table>
-
       <div style="background:#f4f6f8;border-radius:8px;padding:12px 16px;margin-bottom:24px;">
         <p style="margin:0;font-size:13px;color:#6b7280;">
           <span style="font-weight:600;color:#1a1a1a;">Method:</span> {method_label}
@@ -436,13 +428,11 @@ def send_confirmation_email(order_number, amount, discount_amount, items_str, me
           <span style="font-weight:600;color:#1a1a1a;">Date:</span> {now_str}
         </p>
       </div>
-
       <p style="margin:0;font-size:14px;color:#6b7280;text-align:center;line-height:1.6;">
         Thank you for visiting <strong style="color:#0b3d2e;">{course_name}</strong>.<br>
         We look forward to seeing you on the course!
       </p>
     </div>
-
     <div style="background:#f4f6f8;padding:14px 24px;text-align:center;">
       <p style="margin:0;font-size:11px;color:#9ca3af;">
         Powered by Collins Consulting · Golf Operations Technology
@@ -463,7 +453,6 @@ def send_confirmation_email(order_number, amount, discount_amount, items_str, me
         print(f"EMAIL SENT [{order_number}] → {customer_email}")
 
     except Exception as e:
-        # Never block a payment because of an email failure
         print(f"EMAIL ERROR [{order_number}]: {e}")
 
 
@@ -495,7 +484,6 @@ def create_payment_intent():
     if amount < 50:
         return jsonify({"error": "amount too small"}), 400
 
-    # Abbreviated items JSON for Stripe metadata (500 char limit per value)
     items_meta = json.dumps([
         {"n": i["name"][:40], "p": round(i["price"], 2), "q": i.get("quantity", 1)}
         for i in items
@@ -552,7 +540,6 @@ def pay_link():
             "quantity": 1
         })
 
-    # Store items in metadata so webhook can build the receipt
     items_meta = json.dumps([
         {"n": i["name"][:40], "p": round(i["price"], 2), "q": i.get("quantity", 1)}
         for i in items
@@ -561,7 +548,6 @@ def pay_link():
     checkout_session = stripe.checkout.Session.create(
         mode="payment",
         line_items=line_items,
-        # Pre-fill email on Stripe's checkout page if provided
         customer_email=customer_email if customer_email else None,
         success_url=os.getenv("SUCCESS_URL", "https://acwebsite.click/?success=true"),
         cancel_url=os.getenv("CANCEL_URL", "https://acwebsite.click/?cancelled=true"),
@@ -628,7 +614,6 @@ def cash_complete():
     if change < 0:
         return jsonify({"error": "insufficient amount"}), 400
 
-    # Store real items for the receipt, fall back to "cash" if none sent
     if items:
         items_str = json.dumps([
             {"n": i["name"][:40], "p": round(i["price"], 2), "q": i.get("quantity", 1)}
@@ -669,7 +654,8 @@ def webhook():
 
     if etype == "payment_intent.succeeded":
         pi = event["data"]["object"]
-        meta = pi.get("metadata", {})
+        # Use attribute access for new Stripe SDK compatibility
+        meta = dict(pi.metadata) if pi.metadata else {}
         customer_email = meta.get("customer_email", "")
         items_str = meta.get("items", "terminal")
         discount_amount = float(meta.get("discount_amount", 0) or 0)
@@ -685,9 +671,10 @@ def webhook():
 
     elif etype == "checkout.session.completed":
         cs = event["data"]["object"]
-        meta = cs.get("metadata", {})
+        meta = dict(cs.metadata) if cs.metadata else {}
         # Stripe captures customer email on their checkout page
-        customer_email = (cs.get("customer_details") or {}).get("email", "")
+        customer_details = cs.customer_details
+        customer_email = customer_details.email if customer_details else ""
         items_str = meta.get("items", "link")
         discount_amount = float(meta.get("discount_amount", 0) or 0)
         order_number = save_order(
@@ -702,7 +689,8 @@ def webhook():
 
     elif etype == "payment_intent.payment_failed":
         pi = event["data"]["object"]
-        reason = pi.get("last_payment_error", {}).get("message", "unknown")
+        last_error = pi.last_payment_error
+        reason = last_error.message if last_error else "unknown"
         print(f"PAYMENT FAILED [{pi['id']}]: {reason}")
 
     elif etype == "checkout.session.expired":
@@ -711,7 +699,7 @@ def webhook():
 
     elif etype == "charge.refunded":
         charge = event["data"]["object"]
-        pi_id = charge.get("payment_intent")
+        pi_id = charge.payment_intent
         if pi_id:
             conn = sqlite3.connect("payments.db")
             c = conn.cursor()
@@ -772,8 +760,6 @@ def export_csv():
         dt = (r[1] or "")[:19]
         date_part = dt[:10]
         time_part = dt[11:] if len(dt) > 10 else ""
-
-        # Parse items JSON for readable summary
         try:
             items = json.loads(r[4])
             items_summary = "; ".join(
@@ -880,7 +866,6 @@ def admin_orders():
 
     html += f'<p class="revenue">Total Revenue: ${total_revenue:.2f}</p>'
 
-    # Export bar
     html += """
     <div class="export-bar">
       <label>Export Orders to CSV</label>
