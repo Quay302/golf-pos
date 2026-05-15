@@ -121,6 +121,12 @@ def init_db():
             defaults
         )
 
+    # Add players_billed column if upgrading from older schema
+    c.execute("PRAGMA table_info(tee_sheet)")
+    cols = [row[1] for row in c.fetchall()]
+    if "players_billed" not in cols:
+        c.execute("ALTER TABLE tee_sheet ADD COLUMN players_billed INTEGER DEFAULT 0")
+
     # Seed default tee sheet settings if empty
     c.execute("SELECT COUNT(*) FROM tee_sheet_settings")
     if c.fetchone()[0] == 0:
@@ -520,7 +526,7 @@ def get_teesheet():
 
     # Get all bookings for this date (excluding cancelled so slots reopen)
     c.execute("""
-        SELECT id, time, player_name, num_players, holes, cart, status
+        SELECT id, time, player_name, num_players, holes, cart, status, players_billed
         FROM tee_sheet
         WHERE date=? AND status != 'cancelled'
     """, (date,))
@@ -532,7 +538,8 @@ def get_teesheet():
             "num_players": r[3],
             "holes": r[4],
             "cart": bool(r[5]),
-            "status": r[6]
+            "status": r[6],
+            "players_billed": r[7] or 0
         }
     conn.close()
 
@@ -594,9 +601,9 @@ def book_tee_time():
     conn = sqlite3.connect("payments.db")
     c = conn.cursor()
 
-    # Check if slot is already booked (cancelled slots free up the slot)
+    # Check if slot is already booked (cancelled/partial slots treated correctly)
     c.execute(
-        "SELECT id FROM tee_sheet WHERE date=? AND time=? AND status='booked'",
+        "SELECT id FROM tee_sheet WHERE date=? AND time=? AND status IN ('booked', 'partial')",
         (date, time)
     )
     if c.fetchone():
@@ -618,43 +625,73 @@ def book_tee_time():
 @app.route("/teesheet/<int:booking_id>/checkin", methods=["PUT"])
 @login_required
 def checkin_tee_time(booking_id):
+    data = request.json or {}
+    mode = data.get("mode", "together")  # "together" or "individual"
+
     conn = sqlite3.connect("payments.db")
     c = conn.cursor()
 
+    # Accept booked OR partial (mid-split) slots
     c.execute(
-        "SELECT holes, cart, num_players FROM tee_sheet WHERE id=? AND status='booked'",
+        "SELECT holes, cart, num_players, players_billed FROM tee_sheet WHERE id=? AND status IN ('booked', 'partial')",
         (booking_id,)
     )
     row = c.fetchone()
 
     if not row:
         conn.close()
-        return jsonify({"error": "booking not found or already checked in"}), 404
+        return jsonify({"error": "booking not found or already fully checked in"}), 404
 
-    holes, cart, num_players = row
+    holes, cart, num_players, players_billed = row
+    players_billed = players_billed or 0
 
-    # Build product name matching the seeded defaults
     product_name = f"{holes} Holes {'Cart' if cart else 'Walking'}"
-
-    # Look up price — fall back gracefully if product was renamed
     c.execute(
         "SELECT name, price FROM products WHERE name=? AND category='tees' AND active=1",
         (product_name,)
     )
     product = c.fetchone()
 
-    # Mark checked in
-    c.execute("UPDATE tee_sheet SET status='checked_in' WHERE id=?", (booking_id,))
-    conn.commit()
-    conn.close()
+    if mode == "together":
+        # Bill all remaining players at once
+        remaining = num_players - players_billed
+        c.execute(
+            "UPDATE tee_sheet SET status='checked_in', players_billed=? WHERE id=?",
+            (num_players, booking_id)
+        )
+        conn.commit()
+        conn.close()
+        return jsonify({
+            "status": "checked_in",
+            "product": {"name": product[0], "price": product[1]} if product else None,
+            "num_players": remaining
+        })
 
-    response = {"status": "checked_in", "num_players": num_players}
-    if product:
-        response["product"] = {"name": product[0], "price": product[1]}
-    else:
-        response["product"] = None
-
-    return jsonify(response)
+    else:  # individual — bill one player at a time
+        new_billed = players_billed + 1
+        if new_billed >= num_players:
+            # Last player — fully checked in
+            c.execute(
+                "UPDATE tee_sheet SET status='checked_in', players_billed=? WHERE id=?",
+                (num_players, booking_id)
+            )
+            new_status = "checked_in"
+        else:
+            # More players still to bill
+            c.execute(
+                "UPDATE tee_sheet SET status='partial', players_billed=? WHERE id=?",
+                (new_billed, booking_id)
+            )
+            new_status = "partial"
+        conn.commit()
+        conn.close()
+        return jsonify({
+            "status": new_status,
+            "product": {"name": product[0], "price": product[1]} if product else None,
+            "num_players": 1,
+            "players_billed": new_billed,
+            "players_total": num_players
+        })
 
 
 @app.route("/teesheet/<int:booking_id>/cancel", methods=["PUT"])
@@ -663,7 +700,7 @@ def cancel_tee_time(booking_id):
     conn = sqlite3.connect("payments.db")
     c = conn.cursor()
     c.execute(
-        "UPDATE tee_sheet SET status='cancelled' WHERE id=? AND status='booked'",
+        "UPDATE tee_sheet SET status='cancelled' WHERE id=? AND status IN ('booked', 'partial')",
         (booking_id,)
     )
     affected = c.rowcount

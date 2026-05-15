@@ -171,6 +171,8 @@
     .ts-slot.available:hover { border-color: var(--green); background: #f0fdf4; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
     .ts-slot.booked { cursor: pointer; }
     .ts-slot.booked:hover { border-color: var(--green); box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+    .ts-slot.partial { cursor: pointer; border-color: #c4b5fd; background: #faf5ff; }
+    .ts-slot.partial:hover { border-color: #7c3aed; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
     .ts-slot.checked_in { border-color: #93c5fd; background: #eff6ff; cursor: default; }
     .ts-slot.cancelled { opacity: 0.4; cursor: default; }
     .ts-time {
@@ -185,6 +187,7 @@
     }
     .ts-badge.available { background: #d1fae5; color: #065f46; }
     .ts-badge.booked { background: #fef3c7; color: #92400e; }
+    .ts-badge.partial { background: #ede9fe; color: #6d28d9; }
     .ts-badge.checked_in { background: #dbeafe; color: #1e40af; }
     .ts-badge.cancelled { background: #f3f4f6; color: #6b7280; }
 
@@ -511,9 +514,8 @@
   <div class="modal-box">
     <h2 id="slotActionTime"></h2>
     <div id="slotActionBody"></div>
-    <button class="btn-checkin" onclick="checkInSlot()">✓ Check In &amp; Add to Cart</button>
-    <button class="btn-cancel-booking" onclick="cancelSlot()">Cancel Booking</button>
-    <button class="btn-close-slot" onclick="closeSlotAction()">Close</button>
+    <div id="slotActionButtons"></div>
+    <button class="btn-close-slot" onclick="closeSlotAction()" style="margin-top:8px;">Close</button>
   </div>
 </div>
 
@@ -1363,13 +1365,17 @@
     const statusLabels = {
       available: "Available",
       booked: "Booked",
+      partial: "Partial",
       checked_in: "Checked In",
       cancelled: "Cancelled"
     };
 
     container.innerHTML = tsSlots.map((slot, i) => {
-      const label = statusLabels[slot.status] || slot.status;
-      const clickable = slot.status === "available" || slot.status === "booked";
+      const label = slot.status === "partial"
+        ? `${slot.players_billed || 0}/${slot.num_players} Billed`
+        : (statusLabels[slot.status] || slot.status);
+
+      const clickable = slot.status === "available" || slot.status === "booked" || slot.status === "partial";
 
       let content = "";
       if (slot.status === "available") {
@@ -1398,7 +1404,7 @@
     const slot = tsSlots[index];
     if (slot.status === "available") {
       openBookingModal(slot.time, slot.display_time);
-    } else if (slot.status === "booked") {
+    } else if (slot.status === "booked" || slot.status === "partial") {
       openSlotAction(slot);
     }
   }
@@ -1473,6 +1479,7 @@
     const holesLabel = slot.holes === 9 ? "9 Holes" : "18 Holes";
     const cartLabel = slot.cart ? "Cart" : "Walking";
     const playersLabel = slot.num_players > 1 ? `${slot.num_players} players` : "1 player";
+
     document.getElementById("slotActionTime").textContent = slot.display_time;
     document.getElementById("slotActionBody").innerHTML = `
       <div class="slot-info-box">
@@ -1480,6 +1487,40 @@
         <div class="slot-info-details">${holesLabel} · ${cartLabel} · ${playersLabel}</div>
       </div>
     `;
+
+    const btns = document.getElementById("slotActionButtons");
+
+    if (slot.status === "partial") {
+      // Mid-split: only show next player option
+      const nextNum = (slot.players_billed || 0) + 1;
+      btns.innerHTML = `
+        <button class="btn-checkin" onclick="checkInSlot('individual')">
+          ✓ Bill Player ${nextNum} of ${slot.num_players}
+        </button>
+        <button class="btn-cancel-booking" onclick="cancelSlot()">Cancel Remaining</button>
+      `;
+    } else if (slot.num_players > 1) {
+      // Multi-player booked: offer together or individual
+      btns.innerHTML = `
+        <button class="btn-checkin" onclick="checkInSlot('together')">
+          ✓ Check In — Bill Together (${slot.num_players} players)
+        </button>
+        <button class="btn-checkin" onclick="checkInSlot('individual')"
+          style="background:var(--gold);margin-top:8px;">
+          💳 Check In — Bill Individually (Player 1 of ${slot.num_players})
+        </button>
+        <button class="btn-cancel-booking" onclick="cancelSlot()">Cancel Booking</button>
+      `;
+    } else {
+      // Single player: simple check in
+      btns.innerHTML = `
+        <button class="btn-checkin" onclick="checkInSlot('together')">
+          ✓ Check In &amp; Add to Cart
+        </button>
+        <button class="btn-cancel-booking" onclick="cancelSlot()">Cancel Booking</button>
+      `;
+    }
+
     document.getElementById("slotActionModal").classList.add("show");
   }
 
@@ -1488,22 +1529,35 @@
     activeSlotId = null;
   }
 
-  async function checkInSlot() {
+  async function checkInSlot(mode) {
     if (!activeSlotId) return;
 
     try {
-      const res = await fetch(`/teesheet/${activeSlotId}/checkin`, { method: "PUT" });
+      const res = await fetch(`/teesheet/${activeSlotId}/checkin`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mode })
+      });
       const data = await res.json();
 
       if (data.error && !data.status) { alert(data.error); return; }
 
       closeSlotAction();
 
-      // Add the correct product to cart for each player
+      // Add product to cart
       if (data.product) {
         for (let i = 0; i < data.num_players; i++) {
           addItem(data.product.name, data.product.price);
         }
+      }
+
+      // If more players left show a helpful banner in cart area
+      if (data.status === "partial") {
+        const remaining = data.players_total - data.players_billed;
+        const banner = document.getElementById("successBanner");
+        banner.textContent = `✓ Player ${data.players_billed} of ${data.players_total} added — ${remaining} remaining`;
+        banner.style.display = "block";
+        setTimeout(() => { banner.style.display = "none"; }, 4000);
       }
 
       loadTeeSheet();
