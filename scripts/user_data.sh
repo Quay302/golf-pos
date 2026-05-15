@@ -14,6 +14,8 @@ git clone https://github.com/Quay302/golf-pos.git /home/ec2-user/golf-pos
 chown -R ec2-user:ec2-user /home/ec2-user/golf-pos
 
 # ── Python dependencies ───────────────────────────────────────────────────────
+# Upgrade cryptography and pyOpenSSL first to avoid sendgrid import conflicts
+pip3 install --upgrade cryptography pyOpenSSL
 pip3 install -r /home/ec2-user/golf-pos/app/requirements.txt
 
 # ── Environment variables ─────────────────────────────────────────────────────
@@ -30,6 +32,9 @@ STAFF_USER_2=REPLACE_WITH_STAFF_USERNAME
 STAFF_PASS_2=REPLACE_WITH_A_SECURE_PASSWORD
 MANAGER_USER=REPLACE_WITH_MANAGER_USERNAME
 MANAGER_PASS=REPLACE_WITH_A_SECURE_PASSWORD
+SENDGRID_API_KEY=REPLACE_WITH_YOUR_SENDGRID_API_KEY
+FROM_EMAIL=receipts@acwebsite.click
+COURSE_NAME=REPLACE_WITH_COURSE_NAME
 EOF
 
 chown ec2-user:ec2-user /home/ec2-user/golf-pos/app/.env
