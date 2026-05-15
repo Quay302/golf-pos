@@ -7,13 +7,23 @@
 # prohibited without prior written permission.
 # =============================================================
 import os
+import csv
+import io
+import json
 import sqlite3
 import stripe
 from datetime import datetime, timedelta
-from flask import Flask, request, jsonify, send_from_directory, session
+from flask import Flask, request, jsonify, send_from_directory, session, Response
 from functools import wraps
 from flask_cors import CORS
 from dotenv import load_dotenv
+
+try:
+    from sendgrid import SendGridAPIClient
+    from sendgrid.mail import Mail
+    SENDGRID_AVAILABLE = True
+except ImportError:
+    SENDGRID_AVAILABLE = False
 
 load_dotenv()
 
@@ -51,7 +61,8 @@ def init_db():
             items TEXT,
             method TEXT,
             status TEXT,
-            created_at TEXT
+            created_at TEXT,
+            customer_email TEXT DEFAULT ''
         )
     """)
 
@@ -74,6 +85,12 @@ def init_db():
             active INTEGER DEFAULT 1
         )
     """)
+
+    # Migrate: add customer_email to existing orders table if upgrading
+    c.execute("PRAGMA table_info(orders)")
+    order_cols = [row[1] for row in c.fetchall()]
+    if "customer_email" not in order_cols:
+        c.execute("ALTER TABLE orders ADD COLUMN customer_email TEXT DEFAULT ''")
 
     # Seed default products if empty
     c.execute("SELECT COUNT(*) FROM products")
@@ -331,6 +348,126 @@ def validate_discount():
 
 
 # -------------------------
+# SENDGRID EMAIL
+# -------------------------
+def send_confirmation_email(order_number, amount, discount_amount, items_str, method, customer_email):
+    """Send a receipt email via SendGrid. Fails silently so payments are never blocked."""
+    if not customer_email or not SENDGRID_AVAILABLE:
+        return
+    api_key = os.getenv("SENDGRID_API_KEY")
+    from_email = os.getenv("FROM_EMAIL", "receipts@collinsconsulting.golf")
+    course_name = os.getenv("COURSE_NAME", "Country Club")
+    if not api_key:
+        return
+
+    try:
+        # Build itemised rows
+        try:
+            items = json.loads(items_str)
+            rows_html = ""
+            for i in items:
+                name = i.get("name") or i.get("n", "Item")
+                price = float(i.get("price") or i.get("p", 0))
+                qty = int(i.get("quantity") or i.get("q", 1))
+                rows_html += f"""
+                <tr>
+                  <td style="padding:7px 0;font-size:14px;color:#1a1a1a;">{name}</td>
+                  <td style="padding:7px 0;font-size:14px;color:#6b7280;text-align:center;">x{qty}</td>
+                  <td style="padding:7px 0;font-size:14px;color:#1a1a1a;text-align:right;">${price * qty:.2f}</td>
+                </tr>"""
+        except Exception:
+            rows_html = '<tr><td colspan="3" style="padding:7px 0;font-size:14px;color:#6b7280;">See staff for itemised receipt</td></tr>'
+
+        discount_row = ""
+        if discount_amount and float(discount_amount) > 0:
+            discount_row = f"""
+            <tr>
+              <td colspan="2" style="padding:7px 0;font-size:13px;color:#065f46;">Discount applied</td>
+              <td style="padding:7px 0;font-size:13px;color:#065f46;text-align:right;">-${float(discount_amount):.2f}</td>
+            </tr>"""
+
+        method_label = {
+            "terminal": "Card — Tap to Pay",
+            "link": "Online Payment Link",
+            "cash": "Cash"
+        }.get(method, method.title())
+
+        now_str = datetime.utcnow().strftime("%B %d, %Y at %I:%M %p UTC")
+
+        html = f"""<!DOCTYPE html>
+<html>
+<body style="margin:0;padding:0;background:#f4f6f8;font-family:Arial,sans-serif;">
+  <div style="max-width:480px;margin:32px auto;border-radius:12px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.10);">
+
+    <div style="background:#0b3d2e;padding:28px 24px;text-align:center;">
+      <h1 style="color:white;margin:0;font-size:22px;font-weight:700;">{course_name}</h1>
+      <p style="color:rgba(255,255,255,0.75);margin:6px 0 0;font-size:13px;">Payment Confirmation</p>
+    </div>
+
+    <div style="background:white;padding:28px 24px;">
+      <p style="margin:0 0 4px;color:#6b7280;font-size:11px;text-transform:uppercase;letter-spacing:0.8px;">Order Number</p>
+      <p style="margin:0 0 24px;color:#0b3d2e;font-size:22px;font-weight:700;">#{order_number}</p>
+
+      <table style="width:100%;border-collapse:collapse;margin-bottom:20px;">
+        <thead>
+          <tr style="border-bottom:2px solid #f0f0f0;">
+            <th style="text-align:left;padding:8px 0;font-size:11px;color:#6b7280;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;">Item</th>
+            <th style="text-align:center;padding:8px 0;font-size:11px;color:#6b7280;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;">Qty</th>
+            <th style="text-align:right;padding:8px 0;font-size:11px;color:#6b7280;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;">Amount</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows_html}
+          {discount_row}
+        </tbody>
+        <tfoot>
+          <tr style="border-top:2px solid #f0f0f0;">
+            <td colspan="2" style="padding:14px 0 0;font-size:16px;font-weight:700;color:#0b3d2e;">Total Paid</td>
+            <td style="padding:14px 0 0;font-size:16px;font-weight:700;color:#0b3d2e;text-align:right;">${float(amount):.2f}</td>
+          </tr>
+        </tfoot>
+      </table>
+
+      <div style="background:#f4f6f8;border-radius:8px;padding:12px 16px;margin-bottom:24px;">
+        <p style="margin:0;font-size:13px;color:#6b7280;">
+          <span style="font-weight:600;color:#1a1a1a;">Method:</span> {method_label}
+        </p>
+        <p style="margin:4px 0 0;font-size:13px;color:#6b7280;">
+          <span style="font-weight:600;color:#1a1a1a;">Date:</span> {now_str}
+        </p>
+      </div>
+
+      <p style="margin:0;font-size:14px;color:#6b7280;text-align:center;line-height:1.6;">
+        Thank you for visiting <strong style="color:#0b3d2e;">{course_name}</strong>.<br>
+        We look forward to seeing you on the course!
+      </p>
+    </div>
+
+    <div style="background:#f4f6f8;padding:14px 24px;text-align:center;">
+      <p style="margin:0;font-size:11px;color:#9ca3af;">
+        Powered by Collins Consulting · Golf Operations Technology
+      </p>
+    </div>
+  </div>
+</body>
+</html>"""
+
+        message = Mail(
+            from_email=from_email,
+            to_emails=customer_email,
+            subject=f"Your receipt from {course_name} — #{order_number}",
+            html_content=html
+        )
+        sg = SendGridAPIClient(api_key)
+        sg.send(message)
+        print(f"EMAIL SENT [{order_number}] → {customer_email}")
+
+    except Exception as e:
+        # Never block a payment because of an email failure
+        print(f"EMAIL ERROR [{order_number}]: {e}")
+
+
+# -------------------------
 # STRIPE TERMINAL
 # -------------------------
 @app.route("/terminal/connection-token", methods=["POST"])
@@ -346,6 +483,7 @@ def create_payment_intent():
     data = request.json
     items = data.get("items", [])
     discount_amount = data.get("discount_amount", 0)
+    customer_email = data.get("customer_email", "").strip()
 
     if not items:
         return jsonify({"error": "empty cart"}), 400
@@ -357,11 +495,22 @@ def create_payment_intent():
     if amount < 50:
         return jsonify({"error": "amount too small"}), 400
 
+    # Abbreviated items JSON for Stripe metadata (500 char limit per value)
+    items_meta = json.dumps([
+        {"n": i["name"][:40], "p": round(i["price"], 2), "q": i.get("quantity", 1)}
+        for i in items
+    ])[:490]
+
     intent = stripe.PaymentIntent.create(
         amount=amount,
         currency="usd",
         payment_method_types=["card_present"],
         capture_method="automatic",
+        metadata={
+            "customer_email": customer_email[:200],
+            "items": items_meta,
+            "discount_amount": str(round(discount_amount, 2))
+        }
     )
 
     return jsonify({"client_secret": intent.client_secret, "amount": amount})
@@ -376,6 +525,7 @@ def pay_link():
     data = request.json
     items = data.get("items", [])
     discount_amount = data.get("discount_amount", 0)
+    customer_email = data.get("customer_email", "").strip()
 
     if not items:
         return jsonify({"error": "empty cart"}), 400
@@ -402,11 +552,23 @@ def pay_link():
             "quantity": 1
         })
 
+    # Store items in metadata so webhook can build the receipt
+    items_meta = json.dumps([
+        {"n": i["name"][:40], "p": round(i["price"], 2), "q": i.get("quantity", 1)}
+        for i in items
+    ])[:490]
+
     checkout_session = stripe.checkout.Session.create(
         mode="payment",
         line_items=line_items,
+        # Pre-fill email on Stripe's checkout page if provided
+        customer_email=customer_email if customer_email else None,
         success_url=os.getenv("SUCCESS_URL", "https://acwebsite.click/?success=true"),
-        cancel_url=os.getenv("CANCEL_URL", "https://acwebsite.click/?cancelled=true")
+        cancel_url=os.getenv("CANCEL_URL", "https://acwebsite.click/?cancelled=true"),
+        metadata={
+            "items": items_meta,
+            "discount_amount": str(round(discount_amount, 2))
+        }
     )
 
     return jsonify({"url": checkout_session.url})
@@ -422,14 +584,15 @@ def generate_order_number(conn):
     return f"ORD-{count + 1:04d}"
 
 
-def save_order(stripe_id, amount, discount_amount, items_str, method, status="paid"):
+def save_order(stripe_id, amount, discount_amount, items_str, method, status="paid", customer_email=""):
     conn = sqlite3.connect("payments.db")
     c = conn.cursor()
     order_number = generate_order_number(conn)
     c.execute("""
         INSERT OR IGNORE INTO orders
-            (order_number, stripe_session_id, amount, discount_amount, items, method, status, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            (order_number, stripe_session_id, amount, discount_amount,
+             items, method, status, created_at, customer_email)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, (
         order_number,
         stripe_id,
@@ -438,11 +601,13 @@ def save_order(stripe_id, amount, discount_amount, items_str, method, status="pa
         items_str,
         method,
         status,
-        datetime.utcnow().isoformat()
+        datetime.utcnow().isoformat(),
+        customer_email
     ))
     conn.commit()
     conn.close()
     print(f"ORDER SAVED [{method}] {order_number}:", stripe_id)
+    return order_number
 
 
 # -------------------------
@@ -455,21 +620,36 @@ def cash_complete():
     total = data.get("total", 0)
     tendered = data.get("tendered", 0)
     discount_amount = data.get("discount_amount", 0)
+    customer_email = data.get("customer_email", "").strip()
+    items = data.get("items", [])
 
     change = round(tendered - total, 2)
 
     if change < 0:
         return jsonify({"error": "insufficient amount"}), 400
 
-    save_order(
+    # Store real items for the receipt, fall back to "cash" if none sent
+    if items:
+        items_str = json.dumps([
+            {"n": i["name"][:40], "p": round(i["price"], 2), "q": i.get("quantity", 1)}
+            for i in items
+        ])
+    else:
+        items_str = "cash"
+
+    order_number = save_order(
         f"CASH-{datetime.utcnow().strftime('%Y%m%d%H%M%S')}",
         total,
         discount_amount,
+        items_str,
         "cash",
-        "cash"
+        customer_email=customer_email
     )
 
-    return jsonify({"change": change})
+    if customer_email:
+        send_confirmation_email(order_number, total, discount_amount, items_str, "cash", customer_email)
+
+    return jsonify({"change": change, "order_number": order_number})
 
 
 # -------------------------
@@ -489,11 +669,36 @@ def webhook():
 
     if etype == "payment_intent.succeeded":
         pi = event["data"]["object"]
-        save_order(pi["id"], pi["amount"] / 100, 0, "terminal", "terminal")
+        meta = pi.get("metadata", {})
+        customer_email = meta.get("customer_email", "")
+        items_str = meta.get("items", "terminal")
+        discount_amount = float(meta.get("discount_amount", 0) or 0)
+        order_number = save_order(
+            pi["id"], pi["amount"] / 100, discount_amount,
+            items_str, "terminal", customer_email=customer_email
+        )
+        if customer_email:
+            send_confirmation_email(
+                order_number, pi["amount"] / 100,
+                discount_amount, items_str, "terminal", customer_email
+            )
 
     elif etype == "checkout.session.completed":
         cs = event["data"]["object"]
-        save_order(cs["id"], cs["amount_total"] / 100, 0, "link", "link")
+        meta = cs.get("metadata", {})
+        # Stripe captures customer email on their checkout page
+        customer_email = (cs.get("customer_details") or {}).get("email", "")
+        items_str = meta.get("items", "link")
+        discount_amount = float(meta.get("discount_amount", 0) or 0)
+        order_number = save_order(
+            cs["id"], cs["amount_total"] / 100, discount_amount,
+            items_str, "link", customer_email=customer_email
+        )
+        if customer_email:
+            send_confirmation_email(
+                order_number, cs["amount_total"] / 100,
+                discount_amount, items_str, "link", customer_email
+            )
 
     elif etype == "payment_intent.payment_failed":
         pi = event["data"]["object"]
@@ -519,6 +724,81 @@ def webhook():
             print(f"ORDER REFUNDED: {pi_id}")
 
     return jsonify({"status": "ok"})
+
+
+# -------------------------
+# CSV EXPORT
+# -------------------------
+@app.route("/admin/export")
+@manager_required
+def export_csv():
+    start = request.args.get("start", "").strip()
+    end = request.args.get("end", "").strip()
+
+    conn = sqlite3.connect("payments.db")
+    c = conn.cursor()
+
+    query = """
+        SELECT order_number, created_at, amount, discount_amount,
+               items, method, status, customer_email
+        FROM orders
+    """
+    params = []
+    conditions = []
+
+    if start:
+        conditions.append("DATE(created_at) >= ?")
+        params.append(start)
+    if end:
+        conditions.append("DATE(created_at) <= ?")
+        params.append(end)
+    if conditions:
+        query += " WHERE " + " AND ".join(conditions)
+    query += " ORDER BY created_at DESC"
+
+    c.execute(query, params)
+    rows = c.fetchall()
+    conn.close()
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow([
+        "Order Number", "Date", "Time (UTC)",
+        "Amount", "Discount", "Items",
+        "Method", "Status", "Customer Email"
+    ])
+
+    for r in rows:
+        dt = (r[1] or "")[:19]
+        date_part = dt[:10]
+        time_part = dt[11:] if len(dt) > 10 else ""
+
+        # Parse items JSON for readable summary
+        try:
+            items = json.loads(r[4])
+            items_summary = "; ".join(
+                f"{i.get('name') or i.get('n', 'Item')} x{i.get('quantity') or i.get('q', 1)}"
+                for i in items
+            )
+        except Exception:
+            items_summary = r[4] or ""
+
+        writer.writerow([
+            r[0], date_part, time_part,
+            f"${r[2]:.2f}",
+            f"${r[3]:.2f}" if r[3] else "$0.00",
+            items_summary,
+            r[5], r[6],
+            r[7] or ""
+        ])
+
+    output.seek(0)
+    filename = f"orders_{datetime.utcnow().strftime('%Y%m%d')}.csv"
+    return Response(
+        output.getvalue(),
+        mimetype="text/csv",
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
+    )
 
 
 # -------------------------
@@ -560,16 +840,58 @@ def admin_orders():
         .terminal { background: #dbeafe; color: #1e40af; }
         .link { background: #fef3c7; color: #92400e; }
         .cash { background: #d1fae5; color: #065f46; }
-        table { width: 100%%; border-collapse: collapse; background: white;
+        table { width: 100%; border-collapse: collapse; background: white;
                 border-radius: 8px; overflow: hidden; }
         th { background: #0b3d2e; color: white; padding: 10px; text-align: left; }
         td { padding: 10px; border-bottom: 1px solid #f0f0f0; }
         .revenue { font-size: 24px; font-weight: bold; color: #0b3d2e; }
-    </style></head><body>
+        .export-bar { background: white; border: 1px solid #dde1e7; border-radius: 10px;
+                      padding: 16px 20px; margin-bottom: 24px; display: flex;
+                      align-items: center; gap: 12px; flex-wrap: wrap; }
+        .export-bar label { font-size: 13px; font-weight: 600; color: #374151; }
+        .export-bar input { padding: 8px 10px; border: 1px solid #dde1e7;
+                            border-radius: 6px; font-size: 13px; }
+        .export-btn { padding: 9px 18px; background: #0b3d2e; color: white;
+                      border: none; border-radius: 8px; cursor: pointer;
+                      font-size: 13px; font-weight: 600; text-decoration: none;
+                      display: inline-block; }
+        .export-btn:hover { background: #145c44; }
+        .export-all { padding: 9px 18px; background: white; color: #0b3d2e;
+                      border: 2px solid #0b3d2e; border-radius: 8px; cursor: pointer;
+                      font-size: 13px; font-weight: 600; text-decoration: none;
+                      display: inline-block; }
+        .export-all:hover { background: #f0f7f4; }
+    </style>
+    <script>
+    function exportCSV() {
+        const start = document.getElementById("exportStart").value;
+        const end = document.getElementById("exportEnd").value;
+        let url = "/admin/export";
+        const params = [];
+        if (start) params.push("start=" + start);
+        if (end) params.push("end=" + end);
+        if (params.length) url += "?" + params.join("&");
+        window.location.href = url;
+    }
+    </script>
+    </head><body>
     <h1>POS Dashboard</h1>
     """
 
     html += f'<p class="revenue">Total Revenue: ${total_revenue:.2f}</p>'
+
+    # Export bar
+    html += """
+    <div class="export-bar">
+      <label>Export Orders to CSV</label>
+      <label style="font-weight:normal">From</label>
+      <input type="date" id="exportStart" />
+      <label style="font-weight:normal">To</label>
+      <input type="date" id="exportEnd" />
+      <button class="export-btn" onclick="exportCSV()">⬇ Export Range</button>
+      <a class="export-all" href="/admin/export">Export All</a>
+    </div>
+    """
 
     html += "<h2>Sales by Day</h2><table>"
     html += "<tr><th>Date</th><th>Orders</th><th>Revenue</th><th>Method</th></tr>"
@@ -587,6 +909,7 @@ def admin_orders():
         status_class = r[7] if r[7] in ("paid", "refunded") else "paid"
         method_class = r[6] if r[6] in ("terminal", "link", "cash") else "terminal"
         discount_line = f"<br><b>Discount:</b> -${r[4]:.2f}" if r[4] and r[4] > 0 else ""
+        email_line = f"<br><b>Email:</b> {r[9]}" if len(r) > 9 and r[9] else ""
         html += f"""
         <div class="order">
             <b>#{r[1]}</b>
@@ -594,7 +917,7 @@ def admin_orders():
             <span class="badge {status_class}">{r[7]}</span><br>
             <b>Amount:</b> ${r[3]:.2f}{discount_line}<br>
             <b>Items:</b> {r[5]}<br>
-            <b>Date:</b> {r[8]}
+            <b>Date:</b> {r[8]}{email_line}
         </div>
         """
 

@@ -108,3 +108,52 @@ resource "aws_route53_record" "flask_www" {
   records         = [aws_eip.flask_eip.public_ip]
   allow_overwrite = true
 }
+
+# ── SendGrid Domain Authentication ───────────────────────────────────────────
+resource "aws_route53_record" "sendgrid_url" {
+  zone_id = data.aws_route53_zone.main.zone_id
+  name    = "url7675.acwebsite.click"
+  type    = "CNAME"
+  ttl     = 300
+  records = ["sendgrid.net"]
+}
+
+resource "aws_route53_record" "sendgrid_domainkey" {
+  zone_id = data.aws_route53_zone.main.zone_id
+  name    = "107521873.acwebsite.click"
+  type    = "CNAME"
+  ttl     = 300
+  records = ["sendgrid.net"]
+}
+
+resource "aws_route53_record" "sendgrid_em" {
+  zone_id = data.aws_route53_zone.main.zone_id
+  name    = "em7267.acwebsite.click"
+  type    = "CNAME"
+  ttl     = 300
+  records = ["u107521873.wl124.sendgrid.net"]
+}
+
+resource "aws_route53_record" "sendgrid_s1" {
+  zone_id = data.aws_route53_zone.main.zone_id
+  name    = "s1._domainkey.acwebsite.click"
+  type    = "CNAME"
+  ttl     = 300
+  records = ["s1.domainkey.u107521873.wl124.sendgrid.net"]
+}
+
+resource "aws_route53_record" "sendgrid_s2" {
+  zone_id = data.aws_route53_zone.main.zone_id
+  name    = "s2._domainkey.acwebsite.click"
+  type    = "CNAME"
+  ttl     = 300
+  records = ["s2.domainkey.u107521873.wl124.sendgrid.net"]
+}
+
+resource "aws_route53_record" "sendgrid_dmarc" {
+  zone_id = data.aws_route53_zone.main.zone_id
+  name    = "_dmarc.acwebsite.click"
+  type    = "TXT"
+  ttl     = 300
+  records = ["v=DMARC1; p=none;"]
+}

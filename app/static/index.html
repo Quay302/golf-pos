@@ -191,6 +191,15 @@
     #discountInfo.valid { color: #065f46; }
     #discountInfo.invalid { color: var(--red); }
 
+    /* Customer email */
+    .email-form { margin: 10px 0 4px; }
+    .email-form label { font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; display: block; margin-bottom: 6px; }
+    .email-form input {
+      width: 100%; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px;
+      font-size: 12px; font-family: 'DM Sans', sans-serif; outline: none;
+    }
+    .email-form input:focus { border-color: var(--green); }
+
     /* Totals */
     .totals-section { margin-top: 12px; padding-top: 12px; border-top: 2px solid var(--border); }
     .total-row { display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 4px; }
@@ -412,6 +421,11 @@
         <div id="discountInfo"></div>
       </div>
 
+      <div class="email-form">
+        <label>Customer Email <span style="font-weight:400;text-transform:none;letter-spacing:0">(optional — for receipt)</span></label>
+        <input type="email" id="customerEmail" placeholder="customer@email.com" />
+      </div>
+
       <div class="totals-section">
         <div class="total-row"><span>Subtotal</span><span id="subtotalDisplay">$0.00</span></div>
         <div class="total-row discount" id="discountRow" style="display:none">
@@ -597,10 +611,15 @@
     renderCart();
   }
 
+  function getCustomerEmail() {
+    return (document.getElementById("customerEmail").value || "").trim();
+  }
+
   function clearCart() {
     cart = [];
     appliedDiscount = null;
     document.getElementById("discountCode").value = "";
+    document.getElementById("customerEmail").value = "";
     document.getElementById("discountInfo").style.display = "none";
     document.getElementById("discountRow").style.display = "none";
     renderCart();
@@ -697,7 +716,7 @@
       const res = await fetch("/terminal/create-payment-intent", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ items: cart, discount_amount: discountAmount })
+        body: JSON.stringify({ items: cart, discount_amount: discountAmount, customer_email: getCustomerEmail() })
       });
 
       const { client_secret, error: be } = await res.json();
@@ -735,7 +754,7 @@
       const res = await fetch("/pay/link", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ items: cart, discount_amount: discountAmount })
+        body: JSON.stringify({ items: cart, discount_amount: discountAmount, customer_email: getCustomerEmail() })
       });
 
       const result = await res.json();
@@ -865,7 +884,9 @@
         body: JSON.stringify({
           total: cashTotal,
           tendered: tendered,
-          discount_amount: cashDiscountAmount
+          discount_amount: cashDiscountAmount,
+          customer_email: getCustomerEmail(),
+          items: cart
         })
       });
 
