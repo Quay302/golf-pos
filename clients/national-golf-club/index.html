@@ -1,16 +1,16 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Country Club POS</title>
+  <title>National Golf Club POS</title>
   <script src="https://js.stripe.com/terminal/v1/"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
   <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
   <style>
     :root {
-      --green: #0b3d2e;
-      --green-light: #145c44;
-      --gold: #c9a84c;
-      --bg: #f4f6f8;
+      --green: #1a3528;
+      --green-light: #254d3a;
+      --gold: #b8962e;
+      --bg: #f5f5f0;
       --border: #dde1e7;
       --text: #1a1a1a;
       --muted: #6b7280;
@@ -317,8 +317,8 @@
 <!-- LOGIN -->
 <div id="loginScreen">
   <div class="login-box">
-    <h1>Country Club POS</h1>
-    <p>Staff access only — sign in to continue</p>
+    <h1>National Golf Club</h1>
+    <p>Pro Shop & Operations — Staff Access Only</p>
     <input type="text" id="username" placeholder="Username" />
     <input type="password" id="password" placeholder="Password" onkeydown="if(event.key==='Enter') login()" />
     <button onclick="login()">Sign In</button>
@@ -377,7 +377,7 @@
 <!-- POS APP -->
 <div id="posApp">
   <header>
-    Country Club POS
+    National Golf Club
     <div class="header-right">
       <span id="readerStatus">Connecting...</span>
       <span class="signout" onclick="logout()">⇠ Sign out</span>

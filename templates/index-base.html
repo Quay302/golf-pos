@@ -1,16 +1,27 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Country Club POS</title>
+  <title><!-- CLIENT: Course Name --> POS</title>
   <script src="https://js.stripe.com/terminal/v1/"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
   <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
   <style>
+    /* ============================================================
+       CLIENT CUSTOMIZATION — update these 7 values per client:
+       1. --green       → primary brand color (header, buttons, accents)
+       2. --green-light → slightly lighter shade of primary
+       3. --gold        → accent color (manager tab)
+       4. --bg          → page background (keep light, adjust warmth)
+       5. Login h1      → course name
+       6. Login p       → custom tagline
+       7. Header text   → course name
+       Also update COURSE_NAME in .env on the server.
+       ============================================================ */
     :root {
-      --green: #0b3d2e;
-      --green-light: #145c44;
-      --gold: #c9a84c;
-      --bg: #f4f6f8;
+      --green: #0b3d2e;       /* PRIMARY — change to client brand color */
+      --green-light: #145c44; /* LIGHTER SHADE — adjust to match */
+      --gold: #c9a84c;        /* ACCENT — change to client accent color */
+      --bg: #f4f6f8;          /* BACKGROUND — subtle warm/cool adjustment */
       --border: #dde1e7;
       --text: #1a1a1a;
       --muted: #6b7280;
@@ -317,8 +328,8 @@
 <!-- LOGIN -->
 <div id="loginScreen">
   <div class="login-box">
-    <h1>Country Club POS</h1>
-    <p>Staff access only — sign in to continue</p>
+    <h1><!-- CLIENT: Course Name --></h1>
+    <p><!-- CLIENT: Tagline e.g. "Pro Shop & Operations — Staff Access Only" --></p>
     <input type="text" id="username" placeholder="Username" />
     <input type="password" id="password" placeholder="Password" onkeydown="if(event.key==='Enter') login()" />
     <button onclick="login()">Sign In</button>
@@ -377,7 +388,7 @@
 <!-- POS APP -->
 <div id="posApp">
   <header>
-    Country Club POS
+    <!-- CLIENT: Course Name -->
     <div class="header-right">
       <span id="readerStatus">Connecting...</span>
       <span class="signout" onclick="logout()">⇠ Sign out</span>
