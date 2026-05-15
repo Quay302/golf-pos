@@ -69,7 +69,7 @@ resource "aws_instance" "flask_server" {
   user_data = file("${path.module}/../scripts/user_data.sh")
 
   root_block_device {
-    volume_size           = 20
+    volume_size           = 30
     volume_type           = "gp3"
     delete_on_termination = true
   }
@@ -112,48 +112,54 @@ resource "aws_route53_record" "flask_www" {
 # ── SendGrid Domain Authentication ───────────────────────────────────────────
 resource "aws_route53_record" "sendgrid_url" {
   zone_id = data.aws_route53_zone.main.zone_id
-  name    = "url7675.acwebsite.click"
+  name    = "url7675.${var.domain_name}"
   type    = "CNAME"
   ttl     = 300
   records = ["sendgrid.net"]
+  allow_overwrite = true
 }
 
 resource "aws_route53_record" "sendgrid_domainkey" {
   zone_id = data.aws_route53_zone.main.zone_id
-  name    = "107521873.acwebsite.click"
+  name    = "107521873.${var.domain_name}"
   type    = "CNAME"
   ttl     = 300
   records = ["sendgrid.net"]
+  allow_overwrite = true
 }
 
 resource "aws_route53_record" "sendgrid_em" {
   zone_id = data.aws_route53_zone.main.zone_id
-  name    = "em7267.acwebsite.click"
+  name    = "em7267.${var.domain_name}"
   type    = "CNAME"
   ttl     = 300
   records = ["u107521873.wl124.sendgrid.net"]
+  allow_overwrite = true
 }
 
 resource "aws_route53_record" "sendgrid_s1" {
   zone_id = data.aws_route53_zone.main.zone_id
-  name    = "s1._domainkey.acwebsite.click"
+  name    = "s1._domainkey.${var.domain_name}"
   type    = "CNAME"
   ttl     = 300
   records = ["s1.domainkey.u107521873.wl124.sendgrid.net"]
+  allow_overwrite = true
 }
 
 resource "aws_route53_record" "sendgrid_s2" {
   zone_id = data.aws_route53_zone.main.zone_id
-  name    = "s2._domainkey.acwebsite.click"
+  name    = "s2._domainkey.${var.domain_name}"
   type    = "CNAME"
   ttl     = 300
   records = ["s2.domainkey.u107521873.wl124.sendgrid.net"]
+  allow_overwrite = true
 }
 
 resource "aws_route53_record" "sendgrid_dmarc" {
   zone_id = data.aws_route53_zone.main.zone_id
-  name    = "_dmarc.acwebsite.click"
+  name    = "_dmarc.${var.domain_name}"
   type    = "TXT"
   ttl     = 300
   records = ["v=DMARC1; p=none;"]
+  allow_overwrite = true
 }
