@@ -7,7 +7,7 @@ echo "Starting setup..."
 
 # ── System update & packages ──────────────────────────────────────────────────
 dnf update -y
-dnf install -y python3 python3-pip git nginx certbot python3-certbot-nginx
+dnf install -y python3 python3-pip git nginx certbot python3-certbot-nginx nano
 
 # ── Clone repo ────────────────────────────────────────────────────────────────
 git clone https://github.com/Quay302/golf-pos.git /home/ec2-user/golf-pos
